@@ -5,11 +5,19 @@ class TraceConverter {
     fun convert(input: List<BuildOperationRecord>): List<TraceEvent> {
         val events = mutableListOf<TraceEvent>()
 
-        fun helper(record: BuildOperationRecord) {
+        fun helper(threadId: Long, record: BuildOperationRecord) {
+            if (record.displayName.startsWith("Resolve mutations for")) {
+                return
+            }
+            if (record.endTime - record.startTime < 3) {
+                return
+            }
+
             events.add(TraceEvent(
                     name = record.displayName,
                     phaseType = "B",
-                    timestamp = record.startTime * 1000
+                    timestamp = record.startTime * 1000,
+                    threadId = threadId,
             ))
 
 //            record.progress?.forEach { progress ->
@@ -21,15 +29,23 @@ class TraceConverter {
 //                                "details" to progress.details, "detailsClassName" to progress.detailsClassName)
 //                ))
 //            }
-            record.children?.forEach { helper(it) }
+            val isNewThread = record.displayName == "Run tasks"
+            record.children?.forEachIndexed { index, it ->
+                val tid = if (!isNewThread) threadId else threadId + index + 1
+                helper(tid, it)
+            }
+
             events.add(TraceEvent(
                     name = record.displayName,
                     phaseType = "E",
-                    timestamp = record.endTime * 1000
+                    timestamp = record.endTime * 1000,
+                    threadId = threadId,
             ))
         }
 
-        input.forEach(::helper)
+        for (it in input) {
+            helper(1, it)
+        }
 
         return events
     }
