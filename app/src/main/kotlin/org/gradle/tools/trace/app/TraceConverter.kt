@@ -12,15 +12,15 @@ class TraceConverter {
                     timestamp = record.startTime * 1000
             ))
 
-            record.progress?.forEach { progress ->
-                events.add(TraceEvent(
-                        name = null,
-                        phaseType = "i",
-                        timestamp = progress.time * 1000,
-                        arguments = mapOf(
-                                "details" to progress.details, "detailsClassName" to progress.detailsClassName)
-                ))
-            }
+//            record.progress?.forEach { progress ->
+//                events.add(TraceEvent(
+//                        name = null,
+//                        phaseType = "i",
+//                        timestamp = progress.time * 1000,
+//                        arguments = mapOf(
+//                                "details" to progress.details, "detailsClassName" to progress.detailsClassName)
+//                ))
+//            }
             record.children?.forEach { helper(it) }
             events.add(TraceEvent(
                     name = record.displayName,

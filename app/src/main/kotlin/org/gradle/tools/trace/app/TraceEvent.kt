@@ -4,31 +4,31 @@ import com.google.gson.annotations.SerializedName
 
 data class TraceEvent(
 
-    @get:SerializedName("name")
+    @SerializedName("name")
     val name: String? = null,
 
-    @get:SerializedName("ph")
+    @SerializedName("ph")
     val phaseType: String?,
 
-    @get:SerializedName("ts")
+    @SerializedName("ts")
     val timestamp: Long,
 
-    @get:SerializedName("pid")
+    @SerializedName("pid")
     val processId: Long? = 1L,
 
-//    @get:SerializedName("id")
+//    @SerializedName("id")
 //    val id: Long?,
 
-    @get:SerializedName("tid")
+    @SerializedName("tid")
     val threadId: Long? = 1L,
 
-    @get:SerializedName("cat")
+    @SerializedName("cat")
     val categories: String? = "",
 
-    @get:SerializedName("s")
+    @SerializedName("s")
     val scope: String? = null,
 
-    @get:SerializedName("args")
+    @SerializedName("args")
     val arguments: Map<String?, Any?>? = null
 )
         
