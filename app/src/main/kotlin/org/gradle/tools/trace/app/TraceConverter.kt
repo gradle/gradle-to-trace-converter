@@ -2,6 +2,8 @@ package org.gradle.tools.trace.app
 
 class TraceConverter {
 
+    private val ignoredBuildOperations = setOf("Execute transform")
+
     fun convert(input: List<BuildOperationRecord>): List<TraceEvent> {
         val events = mutableListOf<TraceEvent>()
 
@@ -13,12 +15,14 @@ class TraceConverter {
                 return
             }
 
-            events.add(TraceEvent(
-                    name = record.displayName,
-                    phaseType = "B",
-                    timestamp = record.startTime * 1000,
-                    threadId = threadId,
-            ))
+            if (record.displayName !in ignoredBuildOperations) {
+                events.add(TraceEvent(
+                        name = record.displayName,
+                        phaseType = "B",
+                        timestamp = record.startTime * 1000,
+                        threadId = threadId
+                ))
+            }
 
 //            record.progress?.forEach { progress ->
 //                events.add(TraceEvent(
@@ -35,12 +39,14 @@ class TraceConverter {
                 helper(tid, it)
             }
 
-            events.add(TraceEvent(
-                    name = record.displayName,
-                    phaseType = "E",
-                    timestamp = record.endTime * 1000,
-                    threadId = threadId,
-            ))
+            if (record.displayName !in ignoredBuildOperations) {
+                events.add(TraceEvent(
+                        name = record.displayName,
+                        phaseType = "E",
+                        timestamp = record.endTime * 1000,
+                        threadId = threadId
+                ))
+            }
         }
 
         for (it in input) {
