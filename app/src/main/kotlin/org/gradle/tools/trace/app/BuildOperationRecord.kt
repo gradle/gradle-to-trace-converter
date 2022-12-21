@@ -21,6 +21,7 @@ class BuildOperationRecord(
         val displayName: String,
         val startTime: Long,
         val endTime: Long,
+        val workerLeaseNumber: Int?,
         details: Map<String, *>?,
         private val detailsClassName: String?,
         result: Map<String, *>?,

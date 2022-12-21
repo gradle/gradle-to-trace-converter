@@ -14,13 +14,14 @@ class TraceConverter {
             if (record.endTime - record.startTime < 3) {
                 return
             }
+            val newThreadId = (record.workerLeaseNumber ?: threadId).toLong()
 
             if (record.displayName !in ignoredBuildOperations) {
                 events.add(TraceEvent(
                         name = record.displayName,
                         phaseType = "B",
                         timestamp = record.startTime * 1000,
-                        threadId = threadId
+                        threadId = newThreadId
                 ))
             }
 
@@ -33,10 +34,8 @@ class TraceConverter {
 //                                "details" to progress.details, "detailsClassName" to progress.detailsClassName)
 //                ))
 //            }
-            val isNewThread = record.displayName == "Run tasks"
-            record.children?.forEachIndexed { index, it ->
-                val tid = if (!isNewThread) threadId else threadId + index + 1
-                helper(tid, it)
+            record.children?.forEach {
+                helper(newThreadId, it)
             }
 
             if (record.displayName !in ignoredBuildOperations) {
@@ -44,13 +43,13 @@ class TraceConverter {
                         name = record.displayName,
                         phaseType = "E",
                         timestamp = record.endTime * 1000,
-                        threadId = threadId
+                        threadId = newThreadId
                 ))
             }
         }
 
         for (it in input) {
-            helper(1, it)
+            helper(0, it)
         }
 
         return events
