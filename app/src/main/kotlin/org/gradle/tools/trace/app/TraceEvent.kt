@@ -13,11 +13,11 @@ data class TraceEvent(
     @SerializedName("ts")
     val timestamp: Long,
 
+    @SerializedName("dur")
+    val duration: Long? = null,
+
     @SerializedName("pid")
     val processId: Long? = 1L,
-
-//    @SerializedName("id")
-//    val id: Long?,
 
     @SerializedName("tid")
     val threadId: Long? = 1L,
@@ -29,6 +29,5 @@ data class TraceEvent(
     val scope: String? = null,
 
     @SerializedName("args")
-    val arguments: Map<String?, Any?>? = null
+    val arguments: Map<String, Any?>? = null
 )
-        
