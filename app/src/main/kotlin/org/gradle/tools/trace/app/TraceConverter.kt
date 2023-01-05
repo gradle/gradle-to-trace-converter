@@ -4,6 +4,8 @@ class TraceConverter {
 
     fun convert(input: List<BuildOperationRecord>): List<TraceEvent> {
         val events = mutableListOf<TraceEvent>()
+        val knownProcesses = mutableSetOf<Long>()
+        val knownThreads = mutableSetOf<Pair<Long, Long>>()
 
         val bopThreadToId = mutableMapOf<String, Long>()
 
@@ -25,26 +27,30 @@ class TraceConverter {
 
             val ctProcessId = record.workerLeaseNumber?.let { it.toLong() + 1 } ?: ctParentProcessId
             val ctThreadId = getThreadId(record.threadDescription ?: "")
-            events.add(TraceEvent(
-                name = "thread_name",
-                phaseType = "M",
-                processId = ctProcessId,
-                threadId = ctThreadId,
-                timestamp = beginTime,
-                arguments = buildMap {
-                    put("name", "Thread " + record.threadDescription)
-                }
-            ))
-            events.add(TraceEvent(
-                name = "process_name",
-                phaseType = "M",
-                processId = ctProcessId,
-                threadId = ctThreadId,
-                timestamp = beginTime,
-                arguments = buildMap {
-                    put("name", "Worker Lease ") // the pid is appended to the name anyway, which will read e.g. "Worker Lease 2"
-                }
-            ))
+            if (knownProcesses.add(ctProcessId)) {
+                events.add(TraceEvent(
+                    name = "process_name",
+                    phaseType = "M",
+                    processId = ctProcessId,
+                    threadId = ctThreadId,
+                    timestamp = beginTime,
+                    arguments = buildMap {
+                        put("name", "Worker Lease ") // the pid is appended to the name anyway, which will read e.g. "Worker Lease 2"
+                    }
+                ))
+            }
+            if (knownThreads.add(Pair(ctProcessId, ctThreadId))) {
+                events.add(TraceEvent(
+                    name = "thread_name",
+                    phaseType = "M",
+                    processId = ctProcessId,
+                    threadId = ctThreadId,
+                    timestamp = beginTime,
+                    arguments = buildMap {
+                        put("name", "Thread " + record.threadDescription)
+                    }
+                ))
+            }
             events.add(TraceEvent(
                 name = record.displayName,
                 phaseType = "X",
