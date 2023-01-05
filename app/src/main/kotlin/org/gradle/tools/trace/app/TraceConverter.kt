@@ -25,7 +25,26 @@ class TraceConverter {
 
             val ctProcessId = record.workerLeaseNumber?.let { it.toLong() + 1 } ?: ctParentProcessId
             val ctThreadId = getThreadId(record.threadDescription ?: "")
-
+            events.add(TraceEvent(
+                name = "thread_name",
+                phaseType = "M",
+                processId = ctProcessId,
+                threadId = ctThreadId,
+                timestamp = beginTime,
+                arguments = buildMap {
+                    put("name", "Thread " + record.threadDescription)
+                }
+            ))
+            events.add(TraceEvent(
+                name = "process_name",
+                phaseType = "M",
+                processId = ctProcessId,
+                threadId = ctThreadId,
+                timestamp = beginTime,
+                arguments = buildMap {
+                    put("name", "Worker Lease ") // the pid is appended to the name anyway, which will read e.g. "Worker Lease 2"
+                }
+            ))
             events.add(TraceEvent(
                 name = record.displayName,
                 phaseType = "X",
