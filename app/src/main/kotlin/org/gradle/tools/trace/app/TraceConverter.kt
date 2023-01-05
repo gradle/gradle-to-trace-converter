@@ -24,7 +24,7 @@ class TraceConverter {
             }
 
             val ctProcessId = record.workerLeaseNumber?.let { it.toLong() + 1 } ?: ctParentProcessId
-            val ctThreadId = getThreadId(record.threadName ?: "")
+            val ctThreadId = getThreadId(record.threadDescription ?: "")
 
             events.add(TraceEvent(
                 name = record.displayName,
@@ -34,7 +34,7 @@ class TraceConverter {
                 processId = ctProcessId,
                 threadId = ctThreadId,
                 arguments = buildMap {
-                    if (!record.threadName.isNullOrBlank()) put("thread", record.threadName)
+                    if (!record.threadDescription.isNullOrBlank()) put("thread", record.threadDescription)
                     if (!record.details.isNullOrEmpty()) put("details", record.details)
                     if (!record.result.isNullOrEmpty()) put("result", record.result)
                 }

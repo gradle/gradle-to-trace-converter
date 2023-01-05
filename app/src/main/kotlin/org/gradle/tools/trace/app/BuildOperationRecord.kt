@@ -22,7 +22,7 @@ class BuildOperationRecord(
     val startTime: Long,
     val endTime: Long,
     val workerLeaseNumber: Int?,
-    val threadName: String?,
+    val threadDescription: String?,
     details: Map<String, *>?,
     private val detailsClassName: String?,
     result: Map<String, *>?,
