@@ -6,9 +6,11 @@
 
 plugins {
     id("gradlebuild.tools.trace.kotlin-application-conventions")
+    id("com.google.protobuf") version ("0.9.1")
 }
 
 dependencies {
+    api("com.google.protobuf:protobuf-java:3.21.12")
     implementation("org.apache.commons:commons-text")
     implementation("com.google.code.gson:gson:2.10")
 }
@@ -19,4 +21,10 @@ repositories {
 application {
     // Define the main class for the application.
     mainClass.set("org.gradle.tools.trace.app.AppKt")
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.21.12"
+    }
 }

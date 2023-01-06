@@ -1,23 +1,30 @@
 package org.gradle.tools.trace.app
 
+import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
+import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
+import perfetto.protos.TracePacketOuterClass.TracePacket
+import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
+import perfetto.protos.TrackEventOuterClass.TrackEvent
+import java.util.concurrent.atomic.AtomicLong
+
 class TraceConverter {
 
-    fun convert(input: List<BuildOperationRecord>): List<TraceEvent> {
-        val events = mutableListOf<TraceEvent>()
-        val knownProcesses = mutableSetOf<Long>()
-        val knownThreads = mutableSetOf<Pair<Long, Long>>()
+    fun convert(input: List<BuildOperationRecord>): List<TracePacket> {
+        val events = mutableListOf<TracePacket>()
+        val uuidCounter = AtomicLong(1)
+        val knownPidTid = mutableMapOf<Int, MutableMap<Int, Long>>()
 
-        val bopThreadToId = mutableMapOf<String, Long>()
+        val bopThreadToId = mutableMapOf<String, Int>()
 
-        fun getThreadId(bopThreadName: String): Long {
+        fun getThreadId(bopThreadName: String): Int {
             return bopThreadToId.getOrPut(bopThreadName) {
-                bopThreadToId.size.toLong() + 1
+                bopThreadToId.size + 1
             }
         }
 
         fun toChromeTraceTime(time: Long) = time * 1000
 
-        fun helper(ctParentProcessId: Long, record: BuildOperationRecord) {
+        fun helper(record: BuildOperationRecord) {
             val beginTime = toChromeTraceTime(record.startTime)
             val endTime = toChromeTraceTime(record.endTime)
 
@@ -25,62 +32,66 @@ class TraceConverter {
                 System.err.println("Invalid time interval: $record")
             }
 
-            val ctProcessId = record.workerLeaseNumber?.let { it.toLong() + 1 } ?: ctParentProcessId
+            val ctProcessId = record.workerLeaseNumber!! + 1
             val ctThreadId = getThreadId(record.threadDescription ?: "")
-            if (knownProcesses.add(ctProcessId)) {
-                events.add(TraceEvent(
-                    name = "process_name",
-                    phaseType = "M",
-                    processId = ctProcessId,
-                    threadId = ctThreadId,
-                    timestamp = beginTime,
-                    arguments = buildMap {
-                        put("name", "Worker Lease ") // the pid is appended to the name anyway, which will read e.g. "Worker Lease 2"
-                    }
-                ))
+            if (!knownPidTid.containsKey(ctProcessId)) {
+                events.add(TracePacket.newBuilder()
+                    .setTimestamp(beginTime)
+                    .setTrustedPacketSequenceId(1)
+                    .setProcessDescriptor(ProcessDescriptor.newBuilder()
+                        .setPid(ctProcessId)
+                        .setProcessName("Worker Lease $ctProcessId")
+                    )
+                    .build()
+                )
+                knownPidTid[ctProcessId] = mutableMapOf()
             }
-            if (knownThreads.add(Pair(ctProcessId, ctThreadId))) {
-                events.add(TraceEvent(
-                    name = "thread_name",
-                    phaseType = "M",
-                    processId = ctProcessId,
-                    threadId = ctThreadId,
-                    timestamp = beginTime,
-                    arguments = buildMap {
-                        put("name", "Thread " + record.threadDescription)
-                    }
-                ))
+            val uuid: Long
+            if (!(knownPidTid[ctProcessId]!!.containsKey(ctThreadId))) {
+                uuid = uuidCounter.getAndIncrement()
+                events.add(TracePacket.newBuilder()
+                    .setTimestamp(beginTime)
+                    .setTrustedPacketSequenceId(1)
+                    .setTrackDescriptor(TrackDescriptor.newBuilder()
+                        .setUuid(uuid)
+                        .setThread(ThreadDescriptor.newBuilder()
+                            .setPid(ctProcessId)
+                            .setTid(ctThreadId)
+                            .setThreadName(record.threadDescription)
+                        )
+                    )
+                    .build()
+                )
+                knownPidTid[ctProcessId]!![ctThreadId] = uuid
+            } else {
+                uuid = knownPidTid[ctProcessId]!![ctThreadId]!!
             }
-            events.add(TraceEvent(
-                name = record.displayName,
-                phaseType = "X",
-                timestamp = beginTime,
-                duration = endTime - beginTime,
-                processId = ctProcessId,
-                threadId = ctThreadId,
-                arguments = buildMap {
-                    if (!record.threadDescription.isNullOrBlank()) put("thread", record.threadDescription)
-                    if (!record.details.isNullOrEmpty()) put("details", record.details)
-                    if (!record.result.isNullOrEmpty()) put("result", record.result)
-                }
-            ))
 
-//            record.progress?.forEach { progress ->
-//                events.add(TraceEvent(
-//                    name = null,
-//                    phaseType = "i",
-//                    timestamp = toChromeTraceTime(progress.time),
-//                    arguments = mapOf("details" to progress.details, "detailsClassName" to progress.detailsClassName)
-//                ))
-//            }
+            events.add(TracePacket.newBuilder()
+                .setTimestamp(beginTime)
+                .setTrustedPacketSequenceId(1)
+                .setTrackEvent(TrackEvent.newBuilder()
+                    .setTrackUuid(uuid)
+                    .setName(record.displayName)
+                    .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
+                )
+                .build())
+            events.add(TracePacket.newBuilder()
+                .setTimestamp(endTime)
+                .setTrustedPacketSequenceId(1)
+                .setTrackEvent(TrackEvent.newBuilder()
+                    .setTrackUuid(uuid)
+                    .setType(TrackEvent.Type.TYPE_SLICE_END)
+                )
+                .build())
 
             record.children?.forEachIndexed { _, it ->
-                helper(ctProcessId, it)
+                helper(it)
             }
         }
 
         for (it in input) {
-            helper(0, it)
+            helper(it)
         }
 
         return events
