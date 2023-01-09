@@ -36,7 +36,6 @@ class TraceConverter {
             val ctThreadId = getThreadId(record.threadDescription ?: "")
             if (!knownPidTid.containsKey(ctProcessId)) {
                 events.add(TracePacket.newBuilder()
-                    .setTimestamp(beginTime)
                     .setTrustedPacketSequenceId(1)
                     .setTrackDescriptor(TrackDescriptor.newBuilder()
                         .setUuid(0) // irrelevant, but needed
@@ -53,7 +52,6 @@ class TraceConverter {
             if (!(knownPidTid[ctProcessId]!!.containsKey(ctThreadId))) {
                 uuid = uuidCounter.getAndIncrement()
                 events.add(TracePacket.newBuilder()
-                    .setTimestamp(beginTime)
                     .setTrustedPacketSequenceId(1)
                     .setTrackDescriptor(TrackDescriptor.newBuilder()
                         .setUuid(uuid)
