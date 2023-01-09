@@ -1,6 +1,5 @@
 package org.gradle.tools.trace.app
 
-import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation
 import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
 import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
 import perfetto.protos.TracePacketOuterClass.TracePacket
