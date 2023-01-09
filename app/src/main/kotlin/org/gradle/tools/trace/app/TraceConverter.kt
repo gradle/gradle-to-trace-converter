@@ -5,6 +5,7 @@ import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
 import perfetto.protos.TracePacketOuterClass.TracePacket
 import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class TraceConverter {
@@ -22,7 +23,7 @@ class TraceConverter {
             }
         }
 
-        fun toChromeTraceTime(time: Long) = time * 1000
+        fun toChromeTraceTime(time: Long) = TimeUnit.MILLISECONDS.toNanos(time)
 
         fun helper(record: BuildOperationRecord) {
             val beginTime = toChromeTraceTime(record.startTime)
