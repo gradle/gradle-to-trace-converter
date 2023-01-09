@@ -24,9 +24,9 @@ class BuildOperationRecord(
     val workerLeaseNumber: Int?,
     val threadDescription: String?,
     details: Map<String, *>?,
-    private val detailsClassName: String?,
+    val detailsClassName: String?,
     result: Map<String, *>?,
-    private val resultClassName: String?,
+    val resultClassName: String?,
     val failure: String,
     val progress: List<Progress>?,
     val children: List<BuildOperationRecord>?

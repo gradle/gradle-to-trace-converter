@@ -1,5 +1,6 @@
 package org.gradle.tools.trace.app
 
+import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation
 import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
 import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
 import perfetto.protos.TracePacketOuterClass.TracePacket
@@ -75,6 +76,8 @@ class TraceConverter {
                 .setTrackEvent(TrackEvent.newBuilder()
                     .setTrackUuid(uuid)
                     .setName(record.displayName)
+                    .addCategories(record.detailsClassName ?: "")
+                    .addCategories(record.resultClassName ?: "")
                     .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
                 )
                 .build())
