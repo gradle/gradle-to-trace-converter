@@ -1,5 +1,6 @@
 package org.gradle.tools.trace.app
 
+import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation
 import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
 import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
 import perfetto.protos.TracePacketOuterClass.TracePacket
@@ -24,6 +25,17 @@ class TraceConverter {
         }
 
         fun toChromeTraceTime(time: Long) = TimeUnit.MILLISECONDS.toNanos(time)
+
+        fun toDebugAnnotations(args: Map<String, Any?>?, name: String): DebugAnnotation {
+            return DebugAnnotation.newBuilder()
+                .setName(name)
+                .addAllDictEntries(args?.entries?.map { e ->
+                    @Suppress("UNCHECKED_CAST")
+                    return@map if (e.value is Map<*, *>) toDebugAnnotations(e.value as Map<String, Any>, e.key)
+                    else DebugAnnotation.newBuilder().setName(e.key).setStringValue(e.value.toString()).build()
+                }.orEmpty())
+                .build()
+        }
 
         fun helper(record: BuildOperationRecord) {
             val beginTime = toChromeTraceTime(record.startTime)
@@ -77,6 +89,8 @@ class TraceConverter {
                     .setName(record.displayName)
                     .addCategories(record.detailsClassName ?: "")
                     .addCategories(record.resultClassName ?: "")
+                    .addDebugAnnotations(toDebugAnnotations(record.details, "details"))
+                    .addDebugAnnotations(toDebugAnnotations(record.result, "result"))
                     .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
                 )
                 .build())
