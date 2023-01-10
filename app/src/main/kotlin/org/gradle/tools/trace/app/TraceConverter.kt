@@ -33,7 +33,7 @@ class TraceConverter {
                 System.err.println("Invalid time interval: $record")
             }
 
-            val ctProcessId = record.workerLeaseNumber!! + 1
+            val ctProcessId = (record.workerLeaseNumber ?: -1) + 1
             val ctThreadId = getThreadId(record.threadDescription ?: "")
             if (!knownPidTid.containsKey(ctProcessId)) {
                 events.add(TracePacket.newBuilder()
