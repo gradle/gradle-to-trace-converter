@@ -5,7 +5,7 @@ plugins {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:3.21.12")
-    implementation("org.apache.commons:commons-text:1.10")
+    implementation("org.apache.commons:commons-text:1.10.0")
     implementation("com.google.code.gson:gson:2.10")
 }
 repositories {
