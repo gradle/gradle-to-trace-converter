@@ -1,13 +1,16 @@
 package org.gradle.tools.trace.app
 
+import perfetto.protos.BuiltinClockOuterClass.BuiltinClock
+import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot
+import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot.Clock
 import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation
 import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
 import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
 import perfetto.protos.TracePacketOuterClass.TracePacket
 import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 class TraceConverter {
 
@@ -24,8 +27,6 @@ class TraceConverter {
             }
         }
 
-        fun toChromeTraceTime(time: Long) = TimeUnit.MILLISECONDS.toNanos(time)
-
         fun toDebugAnnotations(args: Map<String, Any?>?, name: String): DebugAnnotation {
             return DebugAnnotation.newBuilder()
                 .setName(name)
@@ -37,13 +38,9 @@ class TraceConverter {
                 .build()
         }
 
-        fun helper(record: BuildOperationRecord) {
-            val beginTime = toChromeTraceTime(record.startTime)
-            val endTime = toChromeTraceTime(record.endTime)
-
-            if (endTime < beginTime) {
-                System.err.println("Invalid time interval: $record")
-            }
+        fun helper(record: BuildOperationRecord, lastTimestamp: AtomicReference<Long>) {
+            val beginTime = record.startTime - lastTimestamp.get()
+            lastTimestamp.set(record.startTime)
 
             val ctProcessId = (record.workerLeaseNumber ?: -1) + 1
             val ctThreadId = getThreadId(record.threadDescription ?: "")
@@ -82,6 +79,7 @@ class TraceConverter {
             }
 
             events.add(TracePacket.newBuilder()
+                .setTimestampClockId(64)
                 .setTimestamp(beginTime)
                 .setTrustedPacketSequenceId(1)
                 .setTrackEvent(TrackEvent.newBuilder()
@@ -94,22 +92,49 @@ class TraceConverter {
                     .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
                 )
                 .build())
+
+            record.children?.forEachIndexed { _, it ->
+                helper(it, lastTimestamp)
+            }
+
+            val endTime = record.endTime - lastTimestamp.get()
             events.add(TracePacket.newBuilder()
+                .setTimestampClockId(64)
                 .setTimestamp(endTime)
                 .setTrustedPacketSequenceId(1)
                 .setTrackEvent(TrackEvent.newBuilder()
                     .setTrackUuid(uuid)
                     .setType(TrackEvent.Type.TYPE_SLICE_END)
                 )
-                .build())
-
-            record.children?.forEachIndexed { _, it ->
-                helper(it)
-            }
+                .build()
+            )
+            lastTimestamp.set(record.endTime)
         }
 
+        val firstBuildOp = input.first()
+        val lastTimestamp = AtomicReference(firstBuildOp.startTime)
+        events.add(TracePacket.newBuilder()
+            .setTrustedPacketSequenceId(1)
+            .setClockSnapshot(ClockSnapshot.newBuilder()
+                // set our custom clock:
+                .addClocks(Clock.newBuilder()
+                    .setTimestamp(lastTimestamp.get())
+                    .setUnitMultiplierNs(1000 * 1000) // unit is 'ms'
+                    .setIsIncremental(true) // use delta timestamps
+                    .setClockId(64) // first user-defined available clock ID
+                )
+                // synchronize our custom clock with the default, boot-time clock:
+                .addClocks(Clock.newBuilder()
+                    .setTimestamp(lastTimestamp.get())
+                    .setClockId(BuiltinClock.BUILTIN_CLOCK_BOOTTIME_VALUE)
+                )
+            )
+            .build()
+        )
+
+
         for (it in input) {
-            helper(it)
+            helper(it, lastTimestamp)
         }
 
         return events
