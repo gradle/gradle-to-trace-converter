@@ -1,5 +1,5 @@
 plugins {
-    id("gradlebuild.tools.trace.kotlin-application-conventions")
+    id("build.kotlin-application")
     id("com.google.protobuf") version ("0.9.1")
 }
 
