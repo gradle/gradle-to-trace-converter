@@ -22,7 +22,7 @@ class ConverterApp : CliktCommand() {
         val records = readBuildOperationTrace(traceFile)
         println("Read ${records.size} records from ${traceFile.name}")
         val slice = BuildOperationTraceSlice(records.toList())
-        val traceEvents = TraceConverter().convert(slice)
+        val traceEvents = TraceToChromeTraceConverter().convert(slice)
         val trace = Trace.newBuilder()
             .addAllPacket(traceEvents)
             .build()

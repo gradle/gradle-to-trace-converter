@@ -11,7 +11,7 @@ import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
 import java.util.concurrent.atomic.AtomicLong
 
-class TraceConverter : BuildOperationVisitor {
+class TraceToChromeTraceConverter : BuildOperationVisitor {
 
     private val events = mutableListOf<TracePacket>()
     private val uuidCounter = AtomicLong(1)
