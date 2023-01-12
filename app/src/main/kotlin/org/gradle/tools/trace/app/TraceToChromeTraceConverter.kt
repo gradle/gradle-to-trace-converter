@@ -82,7 +82,7 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
                     .setThread(ThreadDescriptor.newBuilder()
                         .setPid(ctProcessId)
                         .setTid(ctThreadId)
-                        .setThreadName(record.threadDescription)
+                        .setThreadName(record.threadDescription ?: "thread($ctThreadId)")
                     )
                 )
                 .build()
