@@ -11,7 +11,7 @@ fun main(args: Array<String>) = ConverterApp().main(args)
 
 class ConverterApp : CliktCommand() {
 
-    private val buildOperationTrace by argument(name = "trace", help = "Path to the build operation trace file")
+    private val buildOperationTrace: File by argument(name = "trace", help = "Path to the build operation trace file")
         .file(mustExist = true, canBeDir = false, mustBeReadable = true)
 
     override fun run() {
@@ -19,16 +19,25 @@ class ConverterApp : CliktCommand() {
     }
 
     private fun convertToChromeTrace(traceFile: File) {
-        val inputTraceJsonText = traceFile.readText()
-        val records = Gson().fromJson(inputTraceJsonText, Array<BuildOperationRecord>::class.java)
+        val records = readBuildOperationTrace(traceFile)
         println("Read ${records.size} records from ${traceFile.name}")
-        val traceEvents = TraceConverter().convert(records.toList())
+        val slice = BuildOperationTraceSlice(records.toList())
+        val traceEvents = TraceConverter().convert(slice)
         val trace = Trace.newBuilder()
             .addAllPacket(traceEvents)
             .build()
         val traceFileProto = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-chrome.proto")
         traceFileProto.writeBytes(trace.toByteArray())
         println("Wrote ${traceEvents.size} events to ${traceFileProto.absolutePath}")
+    }
+
+    private fun readBuildOperationTrace(traceJsonFile: File): Array<BuildOperationRecord> {
+        val inputTraceJsonText = traceJsonFile.readText()
+        try {
+            return Gson().fromJson(inputTraceJsonText, Array<BuildOperationRecord>::class.java)
+        } catch (e: Exception) {
+            throw RuntimeException("Failed to read build operation trace file: ${traceJsonFile.absolutePath}", e)
+        }
     }
 
 }

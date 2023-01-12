@@ -36,3 +36,33 @@ class BuildOperationRecord(
         }
     }
 }
+
+class BuildOperationTraceSlice(
+    val records: List<BuildOperationRecord>,
+)
+
+typealias PostVisit = () -> Unit
+
+interface BuildOperationVisitor {
+
+    /**
+     * Visits the current build operation record.
+     *
+     * Returns a post-visit callback that will be called after all children have been visited.
+     */
+    fun visit(record: BuildOperationRecord): PostVisit
+
+    companion object {
+        fun visitRecords(traversal: BuildOperationTraceSlice, visitor: BuildOperationVisitor) {
+            fun helper(record: BuildOperationRecord) {
+                val postVisit = visitor.visit(record)
+                record.children?.forEach(::helper)
+                postVisit()
+            }
+
+            for (record in traversal.records) {
+                helper(record)
+            }
+        }
+    }
+}
