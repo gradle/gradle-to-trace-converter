@@ -25,33 +25,16 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
             return emptyList()
         }
 
-        val firstBuildOp = traceTraversal.records.first()
-        lastTimestamp.set(firstBuildOp.startTime)
-        events.add(TracePacket.newBuilder()
-            .setTrustedPacketSequenceId(1)
-            .setClockSnapshot(ClockSnapshot.newBuilder()
-                // set our custom clock:
-                .addClocks(Clock.newBuilder()
-                    .setTimestamp(lastTimestamp.get())
-                    .setUnitMultiplierNs(1000 * 1000) // unit is 'ms'
-                    .setIsIncremental(true) // use delta timestamps
-                    .setClockId(64) // first user-defined available clock ID
-                )
-                // synchronize our custom clock with the default, boot-time clock:
-                .addClocks(Clock.newBuilder()
-                    .setTimestamp(lastTimestamp.get())
-                    .setClockId(BuiltinClock.BUILTIN_CLOCK_BOOTTIME_VALUE)
-                )
-            )
-            .build()
-        )
-
         BuildOperationVisitor.visitRecords(traceTraversal, this)
 
         return events
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {
+        if (events.isEmpty()) {
+            onFirstRecord(record)
+        }
+
         val beginTime = record.startTime - lastTimestamp.get()
         lastTimestamp.set(record.startTime)
 
@@ -126,6 +109,30 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
 
             lastTimestamp.set(record.endTime)
         }
+    }
+
+    private fun onFirstRecord(record: BuildOperationRecord) {
+        val startTime = record.startTime
+        lastTimestamp.set(record.startTime)
+
+        events.add(TracePacket.newBuilder()
+            .setTrustedPacketSequenceId(1)
+            .setClockSnapshot(ClockSnapshot.newBuilder()
+                // set our custom clock:
+                .addClocks(Clock.newBuilder()
+                    .setTimestamp(startTime)
+                    .setUnitMultiplierNs(1000 * 1000) // unit is 'ms'
+                    .setIsIncremental(true) // use delta timestamps
+                    .setClockId(64) // first user-defined available clock ID
+                )
+                // synchronize our custom clock with the default, boot-time clock:
+                .addClocks(Clock.newBuilder()
+                    .setTimestamp(startTime)
+                    .setClockId(BuiltinClock.BUILTIN_CLOCK_BOOTTIME_VALUE)
+                )
+            )
+            .build()
+        )
     }
 
     private fun getThreadId(bopThreadName: String): Int {

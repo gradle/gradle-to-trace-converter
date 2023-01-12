@@ -2,20 +2,19 @@ package org.gradle.tools.trace.app
 
 class BuildOperationRecord(
     val id: Long,
-    val parentId: Long,
     val displayName: String,
     val startTime: Long,
     val endTime: Long,
-    details: Map<String, *>?,
-    val detailsClassName: String?,
-    result: Map<String, *>?,
-    val resultClassName: String?,
-    val failure: String,
-    val progress: List<Progress>?,
-    val children: List<BuildOperationRecord>?,
+    details: Map<String, *>? = null,
+    val detailsClassName: String? = null,
+    result: Map<String, *>? = null,
+    val resultClassName: String? = null,
+    val failure: String? = null,
+    val progress: List<Progress>? = null,
+    val children: List<BuildOperationRecord>? = null,
     // Experimental fields added for spiking:
-    val workerLeaseNumber: Int?,
-    val threadDescription: String?,
+    val workerLeaseNumber: Int? = null,
+    val threadDescription: String? = null,
 ) {
     val details: Map<String, Any?>? = details?.toMap()
     val result: Map<String, Any?>? = result?.toMap()
@@ -37,8 +36,10 @@ class BuildOperationRecord(
     }
 }
 
-class BuildOperationTraceSlice(
+data class BuildOperationTraceSlice(
     val records: List<BuildOperationRecord>,
+    val include: Regex? = null,
+    val exclude: Regex? = null,
 )
 
 typealias PostVisit = () -> Unit
@@ -54,14 +55,25 @@ interface BuildOperationVisitor {
 
     companion object {
         fun visitRecords(traversal: BuildOperationTraceSlice, visitor: BuildOperationVisitor) {
-            fun helper(record: BuildOperationRecord) {
-                val postVisit = visitor.visit(record)
-                record.children?.forEach(::helper)
-                postVisit()
+            val include = traversal.include
+            val exclude = traversal.exclude
+            fun helper(record: BuildOperationRecord, parentIncluded: Boolean) {
+                val displayName = record.displayName
+
+                val included = parentIncluded || include == null || displayName.matches(include)
+
+                if (included && exclude != null && displayName.matches(exclude)) {
+                    return
+                }
+
+                val postVisit = if (included) visitor.visit(record) else null
+                record.children?.forEach { helper(it, included) }
+                postVisit?.invoke()
             }
 
+            val initialIncluded = include == null
             for (record in traversal.records) {
-                helper(record)
+                helper(record, initialIncluded)
             }
         }
     }
