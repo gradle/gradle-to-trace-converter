@@ -16,7 +16,7 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
     private val events = mutableListOf<TracePacket>()
     private val uuidCounter = AtomicLong(1)
     private val knownPidTid = mutableMapOf<Int, MutableMap<Int, Long>>()
-    private val lastTimestamp = AtomicLong(0)
+    private val startTime = AtomicLong(0)
 
     private val bopThreadToId = mutableMapOf<String, Int>()
 
@@ -34,9 +34,6 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
         if (events.isEmpty()) {
             onFirstRecord(record)
         }
-
-        val beginTime = record.startTime - lastTimestamp.get()
-        lastTimestamp.set(record.startTime)
 
         val ctProcessId = (record.workerLeaseNumber ?: -1) + 1
         val ctThreadId = getThreadId(record.threadDescription ?: "")
@@ -77,7 +74,7 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
 
         events.add(TracePacket.newBuilder()
             .setTimestampClockId(64)
-            .setTimestamp(beginTime)
+            .setTimestamp(record.startTime - startTime.get())
             .setTrustedPacketSequenceId(1)
             .setTrackEvent(TrackEvent.newBuilder()
                 .setTrackUuid(uuid)
@@ -93,12 +90,9 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
         // Children are visited automatically if present and not filtered out
 
         return {
-            // The end-time must be relative to the last child event (if any are visited)
-            val endTime = record.endTime - lastTimestamp.get()
-
             events.add(TracePacket.newBuilder()
                 .setTimestampClockId(64)
-                .setTimestamp(endTime)
+                .setTimestamp(record.endTime - startTime.get())
                 .setTrustedPacketSequenceId(1)
                 .setTrackEvent(TrackEvent.newBuilder()
                     .setTrackUuid(uuid)
@@ -106,28 +100,25 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
                 )
                 .build()
             )
-
-            lastTimestamp.set(record.endTime)
         }
     }
 
     private fun onFirstRecord(record: BuildOperationRecord) {
-        val startTime = record.startTime
-        lastTimestamp.set(record.startTime)
+        startTime.set(record.startTime)
 
         events.add(TracePacket.newBuilder()
             .setTrustedPacketSequenceId(1)
             .setClockSnapshot(ClockSnapshot.newBuilder()
-                // set our custom clock:
+                // set our custom clock
+                // - let the 0 of our clock be the startTime on the global boot-time clock
+                // - use 'ms' unit since that's anyway the precision we get by the build operation infrastructure
                 .addClocks(Clock.newBuilder()
-                    .setTimestamp(startTime)
+                    .setTimestamp(0)
                     .setUnitMultiplierNs(1000 * 1000) // unit is 'ms'
-                    .setIsIncremental(true) // use delta timestamps
                     .setClockId(64) // first user-defined available clock ID
                 )
-                // synchronize our custom clock with the default, boot-time clock:
                 .addClocks(Clock.newBuilder()
-                    .setTimestamp(startTime)
+                    .setTimestamp(startTime.get())
                     .setClockId(BuiltinClock.BUILTIN_CLOCK_BOOTTIME_VALUE)
                 )
             )
