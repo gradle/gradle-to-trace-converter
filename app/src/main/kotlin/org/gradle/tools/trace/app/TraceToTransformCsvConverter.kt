@@ -24,7 +24,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
     fun convert(slice: BuildOperationTraceSlice, outputFile: File) {
         BuildOperationVisitor.visitRecords(slice, this)
 
-        outputFile.writeText("identity,type,componentId,fromAttributes,toAttribute,invocationCount,executionTimeMillis")
+        outputFile.writeText("identity,type,componentId,fromAttributes,toAttributes,invocationCount,executionTimeMillis")
         transformByIdentity.values.forEach { transform ->
             outputFile.appendText("\n${transform.identity},${transform.type},${transform.componentId},\"${transform.fromAttributes}\",\"${transform.toAttribute}\",${transform.invocationCount},${transform.executionTimeMillis}")
         }
