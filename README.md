@@ -10,3 +10,9 @@ We include (`-i`) only the operations in the `Run tasks` subtree and exclude (`-
 ```
 ./gradlew :app:run --args='<trace file> -i "Run tasks" -e "Download.*"'
 ```
+
+Getting a transform summary CSV is possible with the following command:
+
+```
+./gradlew :app:run --args='<trace file> -o transform-summary'
+```

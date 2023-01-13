@@ -3,7 +3,9 @@ package org.gradle.tools.trace.app
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.convert
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.file
 import com.google.gson.Gson
 import perfetto.protos.TraceOuterClass.Trace
@@ -11,10 +13,22 @@ import java.io.File
 
 fun main(args: Array<String>) = ConverterApp().main(args)
 
+enum class OutputFormat {
+    CHROME_TRACE,
+    TRANSFORM_CSV
+}
+
 class ConverterApp : CliktCommand() {
 
     private val buildOperationTrace: File by argument(name = "trace", help = "Path to the build operation trace file")
         .file(mustExist = true, canBeDir = false, mustBeReadable = true)
+
+    private val outputFormat: OutputFormat by option("-o", "--output-format", help = "The output format to use")
+        .choice(
+            "chrome" to OutputFormat.CHROME_TRACE,
+            "transform-summary" to OutputFormat.TRANSFORM_CSV,
+        )
+        .default(OutputFormat.CHROME_TRACE)
 
     private val include: Regex? by option("-i", "--include", help = "Regex to filter the build operations to include by display name")
         .convert { it.toRegex() }
@@ -23,12 +37,15 @@ class ConverterApp : CliktCommand() {
         .convert { it.toRegex() }
 
     override fun run() {
-        convertToChromeTrace(buildOperationTrace)
+        when (outputFormat) {
+            OutputFormat.CHROME_TRACE -> convertToChromeTrace(buildOperationTrace)
+            OutputFormat.TRANSFORM_CSV -> convertToTransformSummary(buildOperationTrace)
+        }
     }
 
     private fun convertToChromeTrace(traceFile: File) {
         val records = readBuildOperationTrace(traceFile)
-        println("Read ${records.size} records from ${traceFile.name}")
+        println("Read ${records.size} build operation tree roots from ${traceFile.name}")
         val slice = BuildOperationTraceSlice(records.toList(), include, exclude)
         val traceEvents = TraceToChromeTraceConverter().convert(slice)
         val trace = Trace.newBuilder()
@@ -37,6 +54,14 @@ class ConverterApp : CliktCommand() {
         val traceFileProto = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-chrome.proto")
         traceFileProto.writeBytes(trace.toByteArray())
         println("Wrote ${traceEvents.size} events to ${traceFileProto.absolutePath}")
+    }
+
+    private fun convertToTransformSummary(traceFile: File) {
+        val records = readBuildOperationTrace(traceFile)
+        println("Read ${records.size} build operation tree roots from ${traceFile.name}")
+        val slice = BuildOperationTraceSlice(records.toList(), include, exclude)
+        val outputFile = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-transform-summary.csv")
+        TraceToTransformCsvConverter().convert(slice, outputFile)
     }
 
     private fun readBuildOperationTrace(traceJsonFile: File): Array<BuildOperationRecord> {
