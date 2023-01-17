@@ -32,10 +32,9 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
         println("Wrote ${transformByIdentity.size} transforms to ${outputFile.absolutePath}")
     }
 
-
     override fun visit(record: BuildOperationRecord): PostVisit {
         if (record.displayName == "Identifying work" &&
-            record.detailsClassName == "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$AbstractTransformerExecution\$DefaultTransformIdentifyBuildOperationDetails"
+            record.detailsClassName == "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$AbstractTransformerExecution\$DefaultIdentifyTransformBuildOperationDetails"
         ) {
             onIdentifyTransform(record)
         } else if (record.displayName.startsWith("Executing ") &&
