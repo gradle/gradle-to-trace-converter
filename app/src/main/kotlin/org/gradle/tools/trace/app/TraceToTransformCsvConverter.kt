@@ -11,7 +11,8 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
         val fromAttributes: String,
         val toAttribute: String,
         var invocationCount: Int = 1,
-        var executionTimeMillis: Long = -1,
+        var executionCount: Int = 0,
+        var executionTimeMillis: Long = 0,
     )
 
     private val executeTransformWorkTypes = setOf(
@@ -24,9 +25,9 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
     fun convert(slice: BuildOperationTraceSlice, outputFile: File) {
         BuildOperationVisitor.visitRecords(slice, this)
 
-        outputFile.writeText("identity,type,componentId,fromAttributes,toAttributes,invocationCount,executionTimeMillis")
-        transformByIdentity.values.forEach { transform ->
-            outputFile.appendText("\n${transform.identity},${transform.type},${transform.componentId},\"${transform.fromAttributes}\",\"${transform.toAttribute}\",${transform.invocationCount},${transform.executionTimeMillis}")
+        outputFile.writeText("identity,type,componentId,fromAttributes,toAttributes,invocationCount,executionCount,executionTimeMillis")
+        transformByIdentity.values.forEach {
+            outputFile.appendText("\n${it.identity},${it.type},${it.componentId},\"${it.fromAttributes}\",\"${it.toAttribute}\",${it.invocationCount},${it.executionCount},${it.executionTimeMillis}")
         }
 
         println("Wrote ${transformByIdentity.size} transforms to ${outputFile.absolutePath}")
@@ -87,11 +88,12 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
             return
         }
 
-        if (transformInfo.executionTimeMillis == -1L) {
-            transformInfo.executionTimeMillis = executionTimeMillis
-        } else {
+        if (transformInfo.executionCount != 0) {
             System.err.println("WARNING: Transform ${transformInfo.type} ($identity) executed multiple times")
         }
+
+        transformInfo.executionTimeMillis += executionTimeMillis
+        transformInfo.executionCount++
     }
 
     private fun attributesToString(rawAttributes: List<Map<String, String>>) =
