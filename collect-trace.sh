@@ -26,12 +26,13 @@ GRADLE_CMD="$GRADLE_CMD -g $EMPTY_GRADLE_HOME"
 exe $GRADLE_CMD --console=plain clean
 
 # Kill all Gradle daemons to make sure nothing is cached in memory
-exe pkill -f "GradleDaemon" || true
+WRAPPER_VERSION="$($GRADLE_CMD --version | grep 'Gradle ' | awk '{print $2}')"
+exe pkill -f "GradleDaemon $WRAPPER_VERSION" || true
 
 # Clean the temporary Gradle home to make sure artifact transform results are not cached on disk
 exe rm -rf "./$EMPTY_GRADLE_HOME/daemon"
 # Remove everything from caches except `modules-2` which contains downloaded dependencies
-exe find "./$EMPTY_GRADLE_HOME/caches" -mindepth 1 -maxdepth 1 ! -name 'modules-2' -exec rm -rf {} + || true
+exe find "./$EMPTY_GRADLE_HOME/caches" -mindepth 1 -maxdepth 1 ! -name 'modules-2' -print -exec rm -rf {} + || true
 
 # Clean the storage dir
 exe rm -rf "$STORAGE_DIR"
