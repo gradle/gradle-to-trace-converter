@@ -4,37 +4,46 @@ import java.io.File
 
 class TraceToTransformCsvConverter : BuildOperationVisitor {
 
-    data class TransformInfo(
-        val identity: String,
-        val type: String,
+    data class TransformationIdentity(
+        val buildPath: String,
+        val projectPath: String,
         val componentId: String,
-        val fromAttributes: String,
-        val toAttribute: String,
+        val sourceAttributes: Map<String, String>,
+        val transformType: String,
+        val fromAttributes: Map<String, String>,
+        val toAttributes: Map<String, String>,
+        val transformationNodeId: Long,
+    )
+
+    data class TransformInfo(
+        val transformationIdentity: TransformationIdentity,
+        val identity: String,
         var invocationCount: Int = 1,
         var executionCount: Int = 0,
         var executionTimeMillis: Long = 0,
     )
 
-    private val executeTransformWorkTypes = setOf(
-        "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$ImmutableTransformerExecution",
-        "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$MutableTransformerExecution",
-    )
-
     private val transformByIdentity = mutableMapOf<String, TransformInfo>()
+    private var currentTransformation: TransformationIdentity? = null
 
     fun convert(slice: BuildOperationTraceSlice, outputFile: File) {
         BuildOperationVisitor.visitRecords(slice, this)
 
-        outputFile.writeText("identity,type,componentId,fromAttributes,toAttributes,invocationCount,executionCount,executionTimeMillis")
+        outputFile.writeText(header)
         transformByIdentity.values.forEach {
-            outputFile.appendText("\n${it.identity},${it.type},${it.componentId},\"${it.fromAttributes}\",\"${it.toAttribute}\",${it.invocationCount},${it.executionCount},${it.executionTimeMillis}")
+            outputFile.appendText("\n")
+            outputFile.appendText(composeRow(it))
         }
 
         println("Wrote ${transformByIdentity.size} transforms to ${outputFile.absolutePath}")
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {
-        if (record.displayName == "Identifying work" &&
+        if (record.displayName.startsWith("Transform ") &&
+            record.detailsClassName == "org.gradle.api.internal.artifacts.transform.ExecuteScheduledTransformationStepBuildOperationDetails"
+        ) {
+            return onTransformationNodeExecution(record)
+        } else if (record.displayName == "Identifying work" &&
             record.detailsClassName == "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$AbstractTransformerExecution\$DefaultIdentifyTransformBuildOperationDetails"
         ) {
             onIdentifyTransform(record)
@@ -48,6 +57,32 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
     }
 
     @Suppress("UNCHECKED_CAST")
+    private fun onTransformationNodeExecution(record: BuildOperationRecord): PostVisit {
+        val identityData = (record.details as Map<String, *>)["transformationIdentity"] as Map<String, *>
+
+        val identity = TransformationIdentity(
+            buildPath = identityData["buildPath"] as String,
+            projectPath = identityData["projectPath"] as String,
+            componentId = identityData["componentId"] as String,
+            sourceAttributes = (identityData["sourceAttributes"] as Map<String, String>).toSortedMap(),
+            transformType = identityData["transformType"] as String,
+            fromAttributes = (identityData["fromAttributes"] as Map<String, String>).toSortedMap(),
+            toAttributes = (identityData["toAttributes"] as Map<String, String>).toSortedMap(),
+            transformationNodeId = identityData["transformationNodeId"].toString().toDouble().toLong(),
+        )
+
+        if (currentTransformation != null) {
+            System.err.println("Unexpected transformation node execution: $currentTransformation, when entering $identity")
+        }
+
+        currentTransformation = identity
+
+        return {
+            currentTransformation = null
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
     private fun onIdentifyTransform(record: BuildOperationRecord) {
         val result = record.result!! as Map<String, Map<String, String>>
         val transformIdentity = result["identity"]!!["uniqueId"]!!
@@ -55,22 +90,34 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
         val details = record.details!!
         val transformType = details["workType"] as String
         val componentId = details["componentId"] as String
-        val fromAttributes = attributesToString(details["fromAttributes"] as List<Map<String, String>>)
-        val toAttributes = attributesToString(details["toAttributes"] as List<Map<String, String>>)
+        val fromAttributes = namedAttributesToMap(details["fromAttributes"] as List<Map<String, String>>)
+        val toAttributes = namedAttributesToMap(details["toAttributes"] as List<Map<String, String>>)
+
+        val transformationIdentity = currentTransformation
+            ?: TransformationIdentity(
+                // this happens for immediate transforms
+                buildPath = "",
+                projectPath = "",
+                componentId = componentId,
+                sourceAttributes = emptyMap(),
+                transformType = transformType,
+                fromAttributes = fromAttributes.toSortedMap(),
+                toAttributes = toAttributes.toSortedMap(),
+                transformationNodeId = -1,
+            )
 
         val prevInfo = transformByIdentity[transformIdentity]
         if (prevInfo != null) {
+            if (prevInfo.transformationIdentity != transformationIdentity) {
+                System.err.println("Unexpected identify transform (different transformation): $transformIdentity, $transformType, $componentId, $fromAttributes, $toAttributes")
+            }
             prevInfo.invocationCount++
         } else {
             transformByIdentity[transformIdentity] = TransformInfo(
+                transformationIdentity,
                 transformIdentity,
-                transformType,
-                componentId,
-                fromAttributes,
-                toAttributes
             )
         }
-
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -89,16 +136,68 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
         }
 
         if (transformInfo.executionCount != 0) {
-            System.err.println("WARNING: Transform ${transformInfo.type} ($identity) executed multiple times")
+            System.err.println("WARNING: Transform ${transformInfo.transformationIdentity.transformType} ($identity) executed multiple times")
         }
 
         transformInfo.executionTimeMillis += executionTimeMillis
         transformInfo.executionCount++
     }
 
-    private fun attributesToString(rawAttributes: List<Map<String, String>>) =
-        rawAttributes
-            .sortedBy { it["name"] }
-            .joinToString(",", prefix = "{", postfix = "}") { "${it["name"]}=${it["value"]}" }
+    private fun namedAttributesToMap(rawAttributes: List<Map<String, String>>): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        rawAttributes.forEach {
+            result[it["name"]!!] = it["value"]!!
+        }
+        return result
+    }
+
+    companion object {
+
+        private val executeTransformWorkTypes = setOf(
+            "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$ImmutableTransformerExecution",
+            "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$MutableTransformerExecution",
+        )
+
+        private val header: String = listOf(
+            "buildPath",
+            "projectPath",
+            "componentId",
+            "sourceAttributes",
+            "transformType",
+            "fromAttributes",
+            "toAttributes",
+            "transformationNodeId",
+            "identity",
+            "invocationCount",
+            "executionCount",
+            "executionTimeMillis"
+        ).joinToString(",")
+
+        private fun composeRow(transformInfo: TransformInfo): String = listOf(
+            transformInfo.transformationIdentity.buildPath,
+            transformInfo.transformationIdentity.projectPath,
+            transformInfo.transformationIdentity.componentId,
+            transformInfo.transformationIdentity.sourceAttributes.attributesMapToString(),
+            transformInfo.transformationIdentity.transformType,
+            transformInfo.transformationIdentity.fromAttributes.attributesMapToString(),
+            transformInfo.transformationIdentity.toAttributes.attributesMapToString(),
+            transformInfo.transformationIdentity.transformationNodeId.toString(),
+            transformInfo.identity,
+            transformInfo.invocationCount.toString(),
+            transformInfo.executionCount.toString(),
+            transformInfo.executionTimeMillis.toString(),
+        ).joinToString(",") { convertToCsvValue(it) }
+
+        private fun convertToCsvValue(s: String) =
+            if (s.contains(",") || s.contains("\"")) {
+                "\"${s.replace("\"", "\"\"")}\""
+            } else {
+                s
+            }
+
+        private fun Map<String, String>.attributesMapToString() = entries
+            .joinToString(",", prefix = "{", postfix = "}") { "${it.key}=${it.value}" }
+
+    }
 
 }
