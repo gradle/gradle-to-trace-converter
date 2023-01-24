@@ -4,17 +4,6 @@ import java.io.File
 
 class TraceToTransformCsvConverter : BuildOperationVisitor {
 
-    data class TransformationIdentity(
-        val buildPath: String,
-        val projectPath: String,
-        val componentId: String,
-        val sourceAttributes: Map<String, String>,
-        val transformType: String,
-        val fromAttributes: Map<String, String>,
-        val toAttributes: Map<String, String>,
-        val transformationNodeId: Long,
-    )
-
     data class TransformInfo(
         val transformationIdentity: TransformationIdentity,
         val identity: String,
@@ -39,9 +28,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {
-        if (record.displayName.startsWith("Transform ") &&
-            record.detailsClassName == "org.gradle.api.internal.artifacts.transform.ExecuteScheduledTransformationStepBuildOperationDetails"
-        ) {
+        if (record.isExecuteScheduledTransformationStepBuildOperation()) {
             return onTransformationNodeExecution(record)
         } else if (record.displayName == "Identifying work" &&
             record.detailsClassName == "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$AbstractTransformerExecution\$DefaultIdentifyTransformBuildOperationDetails"
@@ -56,27 +43,13 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
         return {}
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun onTransformationNodeExecution(record: BuildOperationRecord): PostVisit {
-        val identityData = (record.details as Map<String, *>)["transformationIdentity"] as Map<String, *>
-
-        val identity = TransformationIdentity(
-            buildPath = identityData["buildPath"] as String,
-            projectPath = identityData["projectPath"] as String,
-            componentId = identityData["componentId"] as String,
-            sourceAttributes = (identityData["sourceAttributes"] as Map<String, String>).toSortedMap(),
-            transformType = identityData["transformType"] as String,
-            fromAttributes = (identityData["fromAttributes"] as Map<String, String>).toSortedMap(),
-            toAttributes = (identityData["toAttributes"] as Map<String, String>).toSortedMap(),
-            transformationNodeId = identityData["transformationNodeId"].toString().toDouble().toLong(),
-        )
-
+        val identity = TransformationIdentity.fromTraceDetails(record)
         if (currentTransformation != null) {
             System.err.println("Unexpected transformation node execution: $currentTransformation, when entering $identity")
         }
 
         currentTransformation = identity
-
         return {
             currentTransformation = null
         }
@@ -173,7 +146,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
             "executionTimeMillis"
         ).joinToString(",")
 
-        private fun composeRow(transformInfo: TransformInfo): String = listOf(
+        private fun composeRow(transformInfo: TransformInfo): String = composeCsvRow(
             transformInfo.transformationIdentity.buildPath,
             transformInfo.transformationIdentity.projectPath,
             transformInfo.transformationIdentity.componentId,
@@ -186,18 +159,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
             transformInfo.invocationCount.toString(),
             transformInfo.executionCount.toString(),
             transformInfo.executionTimeMillis.toString(),
-        ).joinToString(",") { convertToCsvValue(it) }
-
-        private fun convertToCsvValue(s: String) =
-            if (s.contains(",") || s.contains("\"")) {
-                "\"${s.replace("\"", "\"\"")}\""
-            } else {
-                s
-            }
-
-        private fun Map<String, String>.attributesMapToString() = entries
-            .joinToString(",", prefix = "{", postfix = "}") { "${it.key}=${it.value}" }
-
+        )
     }
 
 }
