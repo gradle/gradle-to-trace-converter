@@ -24,7 +24,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
             outputFile.appendText(composeRow(it))
         }
 
-        println("Wrote ${transformByIdentity.size} transforms to ${outputFile.absolutePath}")
+        println("TRANSFORM SUMMARY: Wrote ${transformByIdentity.size} transforms to ${outputFile.absolutePath}")
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {

@@ -28,7 +28,7 @@ class TraceToTimelineConverter : BuildOperationVisitor {
             outputFile.appendText(composeRow(it))
         }
 
-        println("Wrote ${nodes.size} nodes to ${outputFile.absolutePath}")
+        println("TIMELINE: Wrote ${nodes.size} nodes to ${outputFile.absolutePath}")
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {
@@ -48,7 +48,7 @@ class TraceToTimelineConverter : BuildOperationVisitor {
             description = executeTaskDetails.taskPath,
             type = NodeType.TASK,
             inTypeId = executeTaskDetails.taskId,
-            workType = executeTaskDetails.taskPath,
+            workType = executeTaskDetails.taskClass,
             buildPath = executeTaskDetails.buildPath,
             projectPath = executeTaskDetails.taskPath.substringBeforeLast(':'),
             startTime = record.startTime,

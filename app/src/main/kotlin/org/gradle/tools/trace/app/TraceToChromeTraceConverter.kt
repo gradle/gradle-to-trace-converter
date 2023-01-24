@@ -6,9 +6,11 @@ import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot.Clock
 import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation
 import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
 import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
+import perfetto.protos.TraceOuterClass
 import perfetto.protos.TracePacketOuterClass.TracePacket
 import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
+import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 
 class TraceToChromeTraceConverter : BuildOperationVisitor {
@@ -20,14 +22,17 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
 
     private val bopThreadToId = mutableMapOf<String, Int>()
 
-    fun convert(traceTraversal: BuildOperationTraceSlice): List<TracePacket> {
-        if (traceTraversal.records.isEmpty()) {
-            return emptyList()
+    fun convert(slice: BuildOperationTraceSlice, outputFile: File) {
+        if (slice.records.isNotEmpty()) {
+            BuildOperationVisitor.visitRecords(slice, this)
         }
 
-        BuildOperationVisitor.visitRecords(traceTraversal, this)
+        val trace = TraceOuterClass.Trace.newBuilder()
+            .addAllPacket(events)
+            .build()
 
-        return events
+        outputFile.writeBytes(trace.toByteArray())
+        println("CHROME TRACE: Wrote ${events.size} events to ${outputFile.absolutePath}")
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {

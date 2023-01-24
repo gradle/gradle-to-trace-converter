@@ -8,15 +8,15 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.file
 import com.google.gson.Gson
-import perfetto.protos.TraceOuterClass.Trace
 import java.io.File
 
 fun main(args: Array<String>) = ConverterApp().main(args)
 
-enum class OutputFormat {
-    CHROME_TRACE,
-    TIMELINE,
-    TRANSFORM_CSV
+enum class OutputFormat(val filePostfix: String) {
+    ALL(""),
+    CHROME_TRACE("-chrome.proto"),
+    TIMELINE("-timeline.csv"),
+    TRANSFORM_CSV("-transform-summary.csv");
 }
 
 class ConverterApp : CliktCommand() {
@@ -26,11 +26,12 @@ class ConverterApp : CliktCommand() {
 
     private val outputFormat: OutputFormat by option("-o", "--output-format", help = "The output format to use")
         .choice(
+            "all" to OutputFormat.ALL,
             "chrome" to OutputFormat.CHROME_TRACE,
             "timeline" to OutputFormat.TIMELINE,
             "transform-summary" to OutputFormat.TRANSFORM_CSV,
         )
-        .default(OutputFormat.CHROME_TRACE)
+        .default(OutputFormat.ALL)
 
     private val include: Regex? by option("-i", "--include", help = "Regex to filter the build operations to include by display name")
         .convert { it.toRegex() }
@@ -39,33 +40,36 @@ class ConverterApp : CliktCommand() {
         .convert { it.toRegex() }
 
     override fun run() {
-        when (outputFormat) {
-            OutputFormat.CHROME_TRACE -> convertToChromeTrace(buildOperationTrace)
-            OutputFormat.TIMELINE -> convertToTimelineCsv(buildOperationTrace)
-            OutputFormat.TRANSFORM_CSV -> convertToTransformSummary(buildOperationTrace)
+        val slice = readTraceSlice(buildOperationTrace)
+        val formats = when (outputFormat) {
+            OutputFormat.ALL -> OutputFormat.values().filter { it != OutputFormat.ALL }
+            else -> listOf(outputFormat)
+        }
+
+        for (outputFormat in formats) {
+            val outputFile = outputFile(buildOperationTrace, outputFormat)
+            when (outputFormat) {
+                OutputFormat.CHROME_TRACE -> convertToChromeTrace(outputFile, slice)
+                OutputFormat.TIMELINE -> convertToTimelineCsv(outputFile, slice)
+                OutputFormat.TRANSFORM_CSV -> convertToTransformSummary(outputFile, slice)
+                else -> error("Unexpected output format: $outputFormat")
+            }
         }
     }
 
-    private fun convertToChromeTrace(traceFile: File) {
-        val slice = readTraceSlice(traceFile)
-        val traceEvents = TraceToChromeTraceConverter().convert(slice)
-        val trace = Trace.newBuilder()
-            .addAllPacket(traceEvents)
-            .build()
-        val traceFileProto = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-chrome.proto")
-        traceFileProto.writeBytes(trace.toByteArray())
-        println("Wrote ${traceEvents.size} events to ${traceFileProto.absolutePath}")
+    private fun outputFile(traceFile: File, format: OutputFormat): File {
+        return File(traceFile.parentFile, traceFile.nameWithoutExtension + format.filePostfix)
     }
 
-    private fun convertToTimelineCsv(traceFile: File) {
-        val slice = readTraceSlice(traceFile)
-        val outputFile = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-timeline.csv")
+    private fun convertToChromeTrace(outputFile: File, slice: BuildOperationTraceSlice) {
+        TraceToChromeTraceConverter().convert(slice, outputFile)
+    }
+
+    private fun convertToTimelineCsv(outputFile: File, slice: BuildOperationTraceSlice) {
         TraceToTimelineConverter().convert(slice, outputFile)
     }
 
-    private fun convertToTransformSummary(traceFile: File) {
-        val slice = readTraceSlice(traceFile)
-        val outputFile = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-transform-summary.csv")
+    private fun convertToTransformSummary(outputFile: File, slice: BuildOperationTraceSlice) {
         TraceToTransformCsvConverter().convert(slice, outputFile)
     }
 
