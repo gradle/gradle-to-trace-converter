@@ -1,8 +1,35 @@
 package org.gradle.tools.trace.app
 
 
-fun BuildOperationRecord.isExecuteScheduledTransformationStepBuildOperation() =
+fun BuildOperationRecord.isExecuteTask() =
+    detailsClassName == "org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationDetails"
+
+fun BuildOperationRecord.isExecuteScheduledTransformationStep() =
     detailsClassName == "org.gradle.api.internal.artifacts.transform.ExecuteScheduledTransformationStepBuildOperationDetails"
+
+
+data class ExecuteTaskBuildOperationDetails(
+    val buildPath: String,
+    val taskPath: String,
+    val taskId: Long,
+    val taskClass: String,
+) {
+
+    companion object {
+
+        @Suppress("UNCHECKED_CAST")
+        fun fromRecord(record: BuildOperationRecord): ExecuteTaskBuildOperationDetails {
+            val details = record.details as Map<String, *>
+
+            return ExecuteTaskBuildOperationDetails(
+                buildPath = details["buildPath"] as String,
+                taskPath = details["taskPath"] as String,
+                taskId = details["taskId"].toString().toDouble().toLong(),
+                taskClass = details["taskClass"] as String,
+            )
+        }
+    }
+}
 
 data class TransformationIdentity(
     val buildPath: String,
@@ -18,7 +45,7 @@ data class TransformationIdentity(
     companion object {
 
         @Suppress("UNCHECKED_CAST")
-        fun fromTraceDetails(record: BuildOperationRecord): TransformationIdentity {
+        fun fromRecord(record: BuildOperationRecord): TransformationIdentity {
             val identityData = (record.details as Map<String, *>)["transformationIdentity"] as Map<String, *>
 
             return TransformationIdentity(

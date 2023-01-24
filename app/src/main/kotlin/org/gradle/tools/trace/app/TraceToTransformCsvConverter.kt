@@ -28,7 +28,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
     }
 
     override fun visit(record: BuildOperationRecord): PostVisit {
-        if (record.isExecuteScheduledTransformationStepBuildOperation()) {
+        if (record.isExecuteScheduledTransformationStep()) {
             return onTransformationNodeExecution(record)
         } else if (record.displayName == "Identifying work" &&
             record.detailsClassName == "org.gradle.api.internal.artifacts.transform.DefaultTransformerInvocationFactory\$AbstractTransformerExecution\$DefaultIdentifyTransformBuildOperationDetails"
@@ -44,7 +44,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
     }
 
     private fun onTransformationNodeExecution(record: BuildOperationRecord): PostVisit {
-        val identity = TransformationIdentity.fromTraceDetails(record)
+        val identity = TransformationIdentity.fromRecord(record)
         if (currentTransformation != null) {
             System.err.println("Unexpected transformation node execution: $currentTransformation, when entering $identity")
         }

@@ -15,6 +15,7 @@ fun main(args: Array<String>) = ConverterApp().main(args)
 
 enum class OutputFormat {
     CHROME_TRACE,
+    TIMELINE,
     TRANSFORM_CSV
 }
 
@@ -26,6 +27,7 @@ class ConverterApp : CliktCommand() {
     private val outputFormat: OutputFormat by option("-o", "--output-format", help = "The output format to use")
         .choice(
             "chrome" to OutputFormat.CHROME_TRACE,
+            "timeline" to OutputFormat.TIMELINE,
             "transform-summary" to OutputFormat.TRANSFORM_CSV,
         )
         .default(OutputFormat.CHROME_TRACE)
@@ -39,14 +41,13 @@ class ConverterApp : CliktCommand() {
     override fun run() {
         when (outputFormat) {
             OutputFormat.CHROME_TRACE -> convertToChromeTrace(buildOperationTrace)
+            OutputFormat.TIMELINE -> convertToTimelineCsv(buildOperationTrace)
             OutputFormat.TRANSFORM_CSV -> convertToTransformSummary(buildOperationTrace)
         }
     }
 
     private fun convertToChromeTrace(traceFile: File) {
-        val records = readBuildOperationTrace(traceFile)
-        println("Read ${records.size} build operation tree roots from ${traceFile.name}")
-        val slice = BuildOperationTraceSlice(records.toList(), include, exclude)
+        val slice = readTraceSlice(traceFile)
         val traceEvents = TraceToChromeTraceConverter().convert(slice)
         val trace = Trace.newBuilder()
             .addAllPacket(traceEvents)
@@ -56,12 +57,22 @@ class ConverterApp : CliktCommand() {
         println("Wrote ${traceEvents.size} events to ${traceFileProto.absolutePath}")
     }
 
+    private fun convertToTimelineCsv(traceFile: File) {
+        val slice = readTraceSlice(traceFile)
+        val outputFile = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-timeline.csv")
+        TraceToTimelineConverter().convert(slice, outputFile)
+    }
+
     private fun convertToTransformSummary(traceFile: File) {
-        val records = readBuildOperationTrace(traceFile)
-        println("Read ${records.size} build operation tree roots from ${traceFile.name}")
-        val slice = BuildOperationTraceSlice(records.toList(), include, exclude)
+        val slice = readTraceSlice(traceFile)
         val outputFile = File(traceFile.parentFile, traceFile.nameWithoutExtension + "-transform-summary.csv")
         TraceToTransformCsvConverter().convert(slice, outputFile)
+    }
+
+    private fun readTraceSlice(traceFile: File): BuildOperationTraceSlice {
+        val records = readBuildOperationTrace(traceFile)
+        println("Read ${records.size} build operation tree roots from ${traceFile.name}")
+        return BuildOperationTraceSlice(records.toList(), include, exclude)
     }
 
     private fun readBuildOperationTrace(traceJsonFile: File): Array<BuildOperationRecord> {
