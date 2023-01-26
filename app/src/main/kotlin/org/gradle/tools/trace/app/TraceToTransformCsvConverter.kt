@@ -71,7 +71,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
                 // this happens for immediate transforms
                 buildPath = "",
                 projectPath = "",
-                componentId = componentId,
+                componentId = ComponentIdentifier.Unknown(componentId, "TODO: not unpacked"),
                 sourceAttributes = emptyMap(),
                 transformType = transformType,
                 fromAttributes = fromAttributes.toSortedMap(),
@@ -149,7 +149,7 @@ class TraceToTransformCsvConverter : BuildOperationVisitor {
         private fun composeRow(transformInfo: TransformInfo): String = composeCsvRow(
             transformInfo.transformationIdentity.buildPath,
             transformInfo.transformationIdentity.projectPath,
-            transformInfo.transformationIdentity.componentId,
+            transformInfo.transformationIdentity.componentId.toString(),
             transformInfo.transformationIdentity.sourceAttributes.attributesMapToString(),
             transformInfo.transformationIdentity.transformType,
             transformInfo.transformationIdentity.fromAttributes.attributesMapToString(),

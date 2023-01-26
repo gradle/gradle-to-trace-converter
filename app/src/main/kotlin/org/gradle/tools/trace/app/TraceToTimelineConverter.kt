@@ -76,7 +76,7 @@ class TraceToTimelineConverter : BuildOperationVisitor {
     }
 
     private fun createTransformationDescription(identity: TransformationIdentity): String {
-        return identity.componentId + compressAttributes(identity)
+        return identity.componentId.toString() + compressAttributes(identity)
     }
 
     private fun compressAttributes(identity: TransformationIdentity): String {
