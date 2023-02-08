@@ -1,5 +1,7 @@
 package org.gradle.tools.trace.app
 
+import org.gradle.tools.trace.app.buildops.*
+import org.gradle.tools.trace.app.util.composeCsvRow
 import java.io.File
 
 class TraceToTimelineConverter : BuildOperationVisitor {
@@ -59,15 +61,15 @@ class TraceToTimelineConverter : BuildOperationVisitor {
     }
 
     private fun onExecuteTransform(record: BuildOperationRecord) {
-        val identity = TransformationIdentity.fromRecord(record)
+        val details = ExecuteScheduledTransformationStepBuildOperationDetails.fromRecord(record)
 
         val node = Node(
-            description = createTransformationDescription(identity),
+            description = createTransformationDescription(details),
             type = NodeType.TRANSFORM,
-            inTypeId = identity.transformationNodeId,
-            workType = identity.transformType,
-            buildPath = identity.buildPath,
-            projectPath = identity.projectPath,
+            inTypeId = details.transformationIdentity.transformationNodeId,
+            workType = details.transformType,
+            buildPath = details.transformationIdentity.buildPath,
+            projectPath = details.transformationIdentity.projectPath,
             startTime = record.startTime,
             duration = record.endTime - record.startTime,
         )
@@ -75,14 +77,15 @@ class TraceToTimelineConverter : BuildOperationVisitor {
         nodes.add(node)
     }
 
-    private fun createTransformationDescription(identity: TransformationIdentity): String {
-        return identity.componentId.toString() + compressAttributes(identity)
+    private fun createTransformationDescription(details: ExecuteScheduledTransformationStepBuildOperationDetails): String {
+        val identity = details.transformationIdentity
+        return identity.targetVariant.componentId.toString() + compressAttributes(details)
     }
 
-    private fun compressAttributes(identity: TransformationIdentity): String {
+    private fun compressAttributes(details: ExecuteScheduledTransformationStepBuildOperationDetails): String {
         return buildString {
-            for ((name, toValue) in identity.toAttributes) {
-                val fromValue = identity.fromAttributes[name]
+            for ((name, toValue) in details.toAttributes) {
+                val fromValue = details.fromAttributes[name]
                 if (toValue == fromValue) continue
 
                 append(" ").append(name).append("(")
