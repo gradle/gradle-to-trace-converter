@@ -21,13 +21,21 @@ EMPTY_GRADLE_HOME="${EMPTY_GRADLE_HOME:-fresh-gradle-home}"
 
 GRADLE_CMD="$GRADLE_CMD -g $EMPTY_GRADLE_HOME"
 
+# Ignore dependency verification
+GRADLE_CMD="$GRADLE_CMD --dependency-verification lenient"
+
 # Make sure no local artifact transform results are present
 # shellcheck disable=SC2086
 exe $GRADLE_CMD --console=plain clean
 
 # Kill all Gradle daemons to make sure nothing is cached in memory
-WRAPPER_VERSION="$($GRADLE_CMD --version | grep 'Gradle ' | awk '{print $2}')"
-exe pkill -f "GradleDaemon $WRAPPER_VERSION" || true
+exe pkill -f "GradleDaemon"
+sleep 3
+
+# Killing only daemons of the same version may not be enough, if other daemons hold locks on the fresh Gradle home somehow
+#WRAPPER_VERSION="$($GRADLE_CMD --version | grep 'Gradle ' | awk '{print $2}')"
+#exe pkill -f "GradleDaemon $WRAPPER_VERSION" || true
+
 
 # Clean the temporary Gradle home to make sure artifact transform results are not cached on disk
 exe rm -rf "./$EMPTY_GRADLE_HOME/daemon"
@@ -41,7 +49,7 @@ exe rm -rf "$STORAGE_DIR"
 # shellcheck disable=SC2086
 exe $GRADLE_CMD --console=plain --no-build-cache "$TASK" \
   -Dorg.gradle.internal.operations.trace="$STORAGE_DIR/$TRACE_PREFIX" \
-  --scan -Dscan.dump
+  --scan -Dscan.dump -S
 
 # Find and move scan dump
 # https://unix.stackexchange.com/a/305846
