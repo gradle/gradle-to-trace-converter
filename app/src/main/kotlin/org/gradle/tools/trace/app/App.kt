@@ -8,7 +8,6 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.file
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.nio.file.Files
 import kotlin.streams.toList
@@ -77,42 +76,16 @@ class ConverterApp : CliktCommand() {
 
     private fun readBuildOperationLogs(traceLogFile: File): List<BuildOperationLog> {
         try {
+            val gson = Gson().newBuilder()
+                .registerTypeAdapterFactory(BuildOperationLogAdapterFactory())
+                .create()
             Files.lines(traceLogFile.toPath()).use { lines ->
                 return lines
-                    .map { line -> Gson().fromJson(line, object : TypeToken<Map<String, Any>>() {}) }
-                    .map { map ->
-                        when {
-                            map.containsKey("startTime") -> BuildOperationStart(
-                                toLong(map["id"])!!,
-                                map["displayName"] as String,
-                                toLong(map["startTime"])!!,
-                                map["details"] as Map<String, *>?,
-                                map["detailsClassName"] as String?,
-                                toLong(map["parentId"])
-                            )
-
-                            map.containsKey("endTime") -> BuildOperationFinish(
-                                toLong(map["id"])!!,
-                                toLong(map["endTime"])!!,
-                                map["result"] as Map<String, *>?,
-                                map["resultClassName"] as String?
-                            )
-
-                            else -> BuildOperationProgress(
-                                toLong(map["id"])!!,
-                                toLong(map["time"])!!,
-                                map["details"] as Map<String, *>?,
-                                map["detailsClassName"] as String?,
-                            )
-                        }
-                    }
+                    .map { line -> gson.fromJson(line, BuildOperationLog::class.java) }
                     .toList()
             }
         } catch (e: Exception) {
             throw RuntimeException("Failed to read build operation trace file: ${traceLogFile.absolutePath}", e)
         }
     }
-
-    private fun toLong(value: Any?): Long? = (value as Number?)?.toLong()
-
 }
