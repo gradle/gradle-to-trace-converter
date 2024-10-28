@@ -22,10 +22,8 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
 
     private val bopThreadToId = mutableMapOf<String, Int>()
 
-    fun convert(slice: BuildOperationTraceSlice, outputFile: File) {
-        if (slice.records.isNotEmpty()) {
-            BuildOperationVisitor.visitRecords(slice, this)
-        }
+    fun convert(logs: BuildOperationLogs, outputFile: File) {
+        BuildOperationVisitor.visitLogs(logs, this)
 
         val trace = TraceOuterClass.Trace.newBuilder()
             .addAllPacket(events)
@@ -35,13 +33,13 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
         println("CHROME TRACE: Wrote ${events.size} events to ${outputFile.absolutePath}")
     }
 
-    override fun visit(record: BuildOperationRecord): PostVisit {
+    override fun visit(start: BuildOperationStart): PostVisit {
         if (events.isEmpty()) {
-            onFirstRecord(record)
+            onFirstRecord(start)
         }
 
-        val ctProcessId = (record.workerLeaseNumber ?: -1) + 1
-        val ctThreadId = getThreadId(record.threadDescription ?: "")
+        val ctProcessId = 0
+        val ctThreadId = getThreadId("")
         if (!knownPidTid.containsKey(ctProcessId)) {
             events.add(TracePacket.newBuilder()
                 .setTrustedPacketSequenceId(1)
@@ -67,7 +65,7 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
                     .setThread(ThreadDescriptor.newBuilder()
                         .setPid(ctProcessId)
                         .setTid(ctThreadId)
-                        .setThreadName(record.threadDescription ?: "thread($ctThreadId)")
+                        .setThreadName("thread($ctThreadId)")
                     )
                 )
                 .build()
@@ -79,28 +77,25 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
 
         events.add(TracePacket.newBuilder()
             .setTimestampClockId(64)
-            .setTimestamp(record.startTime - startTime.get())
+            .setTimestamp(start.startTime - startTime.get())
             .setTrustedPacketSequenceId(1)
             .setTrackEvent(TrackEvent.newBuilder()
                 .setTrackUuid(uuid)
-                .setName(record.displayName)
-                .addCategories(record.detailsClassName ?: "")
-                .addCategories(record.resultClassName ?: "")
-                .addDebugAnnotations(toDebugAnnotations(record.details, "details"))
-                .addDebugAnnotations(toDebugAnnotations(record.result, "result"))
+                .setName(start.displayName)
+                .addCategories(start.detailsClassName ?: "")
+                .addDebugAnnotations(toDebugAnnotations(start.details, "details"))
                 .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
             )
             .build())
 
-        // Children are visited automatically if present and not filtered out
-
-        return {
+        return { _, finish ->
             events.add(TracePacket.newBuilder()
                 .setTimestampClockId(64)
-                .setTimestamp(record.endTime - startTime.get())
+                .setTimestamp(finish.endTime - startTime.get())
                 .setTrustedPacketSequenceId(1)
                 .setTrackEvent(TrackEvent.newBuilder()
                     .setTrackUuid(uuid)
+                    .addDebugAnnotations(toDebugAnnotations(finish.result, "result"))
                     .setType(TrackEvent.Type.TYPE_SLICE_END)
                 )
                 .build()
@@ -108,7 +103,7 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
         }
     }
 
-    private fun onFirstRecord(record: BuildOperationRecord) {
+    private fun onFirstRecord(record: BuildOperationStart) {
         startTime.set(record.startTime)
 
         events.add(TracePacket.newBuilder()

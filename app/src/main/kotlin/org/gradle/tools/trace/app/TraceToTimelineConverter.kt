@@ -21,8 +21,8 @@ class TraceToTimelineConverter : BuildOperationVisitor {
 
     private val nodes = mutableListOf<Node>()
 
-    fun convert(slice: BuildOperationTraceSlice, outputFile: File) {
-        BuildOperationVisitor.visitRecords(slice, this)
+    fun convert(logs: BuildOperationLogs, outputFile: File) {
+        BuildOperationVisitor.visitLogs(logs, this)
 
         outputFile.writeText(header)
         nodes.forEach {
@@ -33,48 +33,52 @@ class TraceToTimelineConverter : BuildOperationVisitor {
         println("TIMELINE: Wrote ${nodes.size} nodes to ${outputFile.absolutePath}")
     }
 
-    override fun visit(record: BuildOperationRecord): PostVisit {
-        if (record.isExecuteTask()) {
-            onExecuteTask(record)
-        } else if (record.isExecuteScheduledTransformationStep()) {
-            onExecuteTransform(record)
+    override fun visit(start: BuildOperationStart): PostVisit {
+        if (start.isExecuteTask()) {
+            return onExecuteTask(start)
+        } else if (start.isExecuteScheduledTransformationStep()) {
+            return onExecuteTransform(start)
         }
 
-        return {}
+        return { _, _ -> }
     }
 
-    private fun onExecuteTask(record: BuildOperationRecord) {
-        val executeTaskDetails = ExecuteTaskBuildOperationDetails.fromRecord(record)
+    private fun onExecuteTask(start: BuildOperationStart): PostVisit {
+        val executeTaskDetails = ExecuteTaskBuildOperationDetails.fromStart(start)
 
-        val node = Node(
-            description = executeTaskDetails.taskPath,
-            type = NodeType.TASK,
-            inTypeId = executeTaskDetails.taskId,
-            workType = executeTaskDetails.taskClass,
-            buildPath = executeTaskDetails.buildPath,
-            projectPath = executeTaskDetails.taskPath.substringBeforeLast(':'),
-            startTime = record.startTime,
-            duration = record.endTime - record.startTime,
-        )
+        return { _, finish ->
+            val node = Node(
+                description = executeTaskDetails.taskPath,
+                type = NodeType.TASK,
+                inTypeId = executeTaskDetails.taskId,
+                workType = executeTaskDetails.taskClass,
+                buildPath = executeTaskDetails.buildPath,
+                projectPath = executeTaskDetails.taskPath.substringBeforeLast(':'),
+                startTime = start.startTime,
+                duration = finish.endTime - start.startTime,
+            )
 
-        nodes.add(node)
+            nodes.add(node)
+        }
     }
 
-    private fun onExecuteTransform(record: BuildOperationRecord) {
-        val details = ExecuteScheduledTransformationStepBuildOperationDetails.fromRecord(record)
+    private fun onExecuteTransform(start: BuildOperationStart): PostVisit {
+        val details = ExecuteScheduledTransformationStepBuildOperationDetails.fromRecord(start)
 
-        val node = Node(
-            description = createTransformationDescription(details),
-            type = NodeType.TRANSFORM,
-            inTypeId = details.transformationIdentity.transformationNodeId,
-            workType = details.transformType,
-            buildPath = details.transformationIdentity.buildPath,
-            projectPath = details.transformationIdentity.projectPath,
-            startTime = record.startTime,
-            duration = record.endTime - record.startTime,
-        )
+        return { _, finish ->
+            val node = Node(
+                description = createTransformationDescription(details),
+                type = NodeType.TRANSFORM,
+                inTypeId = details.transformationIdentity.transformationNodeId,
+                workType = details.transformType,
+                buildPath = details.transformationIdentity.buildPath,
+                projectPath = details.transformationIdentity.projectPath,
+                startTime = start.startTime,
+                duration = finish.endTime - start.startTime,
+            )
 
-        nodes.add(node)
+            nodes.add(node)
+        }
     }
 
     private fun createTransformationDescription(details: ExecuteScheduledTransformationStepBuildOperationDetails): String {

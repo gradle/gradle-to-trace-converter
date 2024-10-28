@@ -8,15 +8,17 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.file
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.io.File
+import java.nio.file.Files
+import kotlin.streams.toList
 
 fun main(args: Array<String>) = ConverterApp().main(args)
 
 enum class OutputFormat(val filePostfix: String) {
     ALL(""),
     CHROME_TRACE("-chrome.proto"),
-    TIMELINE("-timeline.csv"),
-    TRANSFORM_CSV("-transform-summary.csv");
+    TIMELINE("-timeline.csv");
 }
 
 class ConverterApp : CliktCommand() {
@@ -29,7 +31,6 @@ class ConverterApp : CliktCommand() {
             "all" to OutputFormat.ALL,
             "chrome" to OutputFormat.CHROME_TRACE,
             "timeline" to OutputFormat.TIMELINE,
-            "transform-summary" to OutputFormat.TRANSFORM_CSV,
         )
         .default(OutputFormat.ALL)
 
@@ -40,7 +41,7 @@ class ConverterApp : CliktCommand() {
         .convert { it.toRegex() }
 
     override fun run() {
-        val slice = readTraceSlice(buildOperationTrace)
+        val logs = readLogs(buildOperationTrace)
         val formats = when (outputFormat) {
             OutputFormat.ALL -> OutputFormat.values().filter { it != OutputFormat.ALL }
             else -> listOf(outputFormat)
@@ -49,9 +50,8 @@ class ConverterApp : CliktCommand() {
         for (outputFormat in formats) {
             val outputFile = outputFile(buildOperationTrace, outputFormat)
             when (outputFormat) {
-                OutputFormat.CHROME_TRACE -> convertToChromeTrace(outputFile, slice)
-                OutputFormat.TIMELINE -> convertToTimelineCsv(outputFile, slice)
-                OutputFormat.TRANSFORM_CSV -> convertToTransformSummary(outputFile, slice)
+                OutputFormat.CHROME_TRACE -> convertToChromeTrace(outputFile, logs)
+                OutputFormat.TIMELINE -> convertToTimelineCsv(outputFile, logs)
                 else -> error("Unexpected output format: $outputFormat")
             }
         }
@@ -61,31 +61,58 @@ class ConverterApp : CliktCommand() {
         return File(traceFile.parentFile, traceFile.nameWithoutExtension + format.filePostfix)
     }
 
-    private fun convertToChromeTrace(outputFile: File, slice: BuildOperationTraceSlice) {
-        TraceToChromeTraceConverter().convert(slice, outputFile)
+    private fun convertToChromeTrace(outputFile: File, logs: BuildOperationLogs) {
+        TraceToChromeTraceConverter().convert(logs, outputFile)
     }
 
-    private fun convertToTimelineCsv(outputFile: File, slice: BuildOperationTraceSlice) {
-        TraceToTimelineConverter().convert(slice, outputFile)
+    private fun convertToTimelineCsv(outputFile: File, logs: BuildOperationLogs) {
+        TraceToTimelineConverter().convert(logs, outputFile)
     }
 
-    private fun convertToTransformSummary(outputFile: File, slice: BuildOperationTraceSlice) {
-        TraceToTransformCsvConverter().convert(slice, outputFile)
+    private fun readLogs(traceFile: File): BuildOperationLogs {
+        val logs = readBuildOperationLogs(traceFile)
+        println("Read ${logs.size} build operation logs from ${traceFile.name}")
+        return BuildOperationLogs(logs, include, exclude)
     }
 
-    private fun readTraceSlice(traceFile: File): BuildOperationTraceSlice {
-        val records = readBuildOperationTrace(traceFile)
-        println("Read ${records.size} build operation tree roots from ${traceFile.name}")
-        return BuildOperationTraceSlice(records.toList(), include, exclude)
-    }
-
-    private fun readBuildOperationTrace(traceJsonFile: File): Array<BuildOperationRecord> {
-        val inputTraceJsonText = traceJsonFile.readText()
+    private fun readBuildOperationLogs(traceLogFile: File): List<BuildOperationLog> {
         try {
-            return Gson().fromJson(inputTraceJsonText, Array<BuildOperationRecord>::class.java)
+            Files.lines(traceLogFile.toPath()).use { lines ->
+                return lines
+                    .map { line -> Gson().fromJson(line, object : TypeToken<Map<String, Any>>() {}) }
+                    .map { map ->
+                        when {
+                            map.containsKey("startTime") -> BuildOperationStart(
+                                toLong(map["id"])!!,
+                                map["displayName"] as String,
+                                toLong(map["startTime"])!!,
+                                map["details"] as Map<String, *>?,
+                                map["detailsClassName"] as String?,
+                                toLong(map["parentId"])
+                            )
+
+                            map.containsKey("endTime") -> BuildOperationFinish(
+                                toLong(map["id"])!!,
+                                toLong(map["endTime"])!!,
+                                map["result"] as Map<String, *>?,
+                                map["resultClassName"] as String?
+                            )
+
+                            else -> BuildOperationProgress(
+                                toLong(map["id"])!!,
+                                toLong(map["time"])!!,
+                                map["details"] as Map<String, *>?,
+                                map["detailsClassName"] as String?,
+                            )
+                        }
+                    }
+                    .toList()
+            }
         } catch (e: Exception) {
-            throw RuntimeException("Failed to read build operation trace file: ${traceJsonFile.absolutePath}", e)
+            throw RuntimeException("Failed to read build operation trace file: ${traceLogFile.absolutePath}", e)
         }
     }
+
+    private fun toLong(value: Any?): Long? = (value as Number?)?.toLong()
 
 }
