@@ -13,7 +13,7 @@ import perfetto.protos.TrackEventOuterClass.TrackEvent
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 
-class TraceToChromeTraceConverter : BuildOperationVisitor {
+class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverter {
 
     private val events = mutableListOf<TracePacket>()
     private val uuidCounter = AtomicLong(1)
@@ -22,9 +22,7 @@ class TraceToChromeTraceConverter : BuildOperationVisitor {
 
     private val bopThreadToId = mutableMapOf<String, Int>()
 
-    fun convert(logs: BuildOperationLogs, outputFile: File) {
-        BuildOperationVisitor.visitLogs(logs, this)
-
+    override fun write() {
         val trace = TraceOuterClass.Trace.newBuilder()
             .addAllPacket(events)
             .build()

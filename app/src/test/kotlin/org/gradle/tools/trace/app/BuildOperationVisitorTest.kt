@@ -23,7 +23,7 @@ class BuildOperationVisitorTest {
             BuildOperationStart(8, "root2-child2", startTime = 157, parentId = 4),
             BuildOperationFinish(8, endTime = 158),
             BuildOperationFinish(4, endTime = 160),
-        )
+        ).stream()
     )
 
     private fun collectVisitedIds(traversal: BuildOperationLogs): List<Int> {

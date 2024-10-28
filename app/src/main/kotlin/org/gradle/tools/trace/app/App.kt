@@ -10,6 +10,7 @@ import com.github.ajalt.clikt.parameters.types.file
 import com.google.gson.Gson
 import java.io.File
 import java.nio.file.Files
+import java.util.stream.Stream
 import kotlin.streams.toList
 
 fun main(args: Array<String>) = ConverterApp().main(args)
@@ -40,19 +41,22 @@ class ConverterApp : CliktCommand() {
         .convert { it.toRegex() }
 
     override fun run() {
-        val logs = readLogs(buildOperationTrace)
         val formats = when (outputFormat) {
             OutputFormat.ALL -> OutputFormat.values().filter { it != OutputFormat.ALL }
             else -> listOf(outputFormat)
         }
-
-        for (outputFormat in formats) {
-            val outputFile = outputFile(buildOperationTrace, outputFormat)
-            when (outputFormat) {
-                OutputFormat.CHROME_TRACE -> convertToChromeTrace(outputFile, logs)
-                OutputFormat.TIMELINE -> convertToTimelineCsv(outputFile, logs)
-                else -> error("Unexpected output format: $outputFormat")
+        val converters = formats.map { format ->
+            val outputFile = outputFile(buildOperationTrace, format)
+            when (format) {
+                OutputFormat.CHROME_TRACE -> toChromeTraceConverter(outputFile)
+                OutputFormat.TIMELINE -> toTimelineCsvConverter(outputFile)
+                else -> error("Unexpected output format: $format")
             }
+        }
+        val compositeVisitor = CompositeBuildOperationVisitor(converters)
+        readLogs(buildOperationTrace).use { logs ->
+            BuildOperationVisitor.visitLogs(logs, compositeVisitor)
+            converters.forEach { it.write() }
         }
     }
 
@@ -60,32 +64,38 @@ class ConverterApp : CliktCommand() {
         return File(traceFile.parentFile, traceFile.nameWithoutExtension + format.filePostfix)
     }
 
-    private fun convertToChromeTrace(outputFile: File, logs: BuildOperationLogs) {
-        TraceToChromeTraceConverter().convert(logs, outputFile)
-    }
+    private fun toChromeTraceConverter(outputFile: File): TraceToChromeTraceConverter =
+        TraceToChromeTraceConverter(outputFile)
 
-    private fun convertToTimelineCsv(outputFile: File, logs: BuildOperationLogs) {
-        TraceToTimelineConverter().convert(logs, outputFile)
-    }
+    private fun toTimelineCsvConverter(outputFile: File): TraceToTimelineConverter =
+        TraceToTimelineConverter(outputFile)
 
     private fun readLogs(traceFile: File): BuildOperationLogs {
         val logs = readBuildOperationLogs(traceFile)
-        println("Read ${logs.size} build operation logs from ${traceFile.name}")
+        println("Read build operation logs from ${traceFile.name}")
         return BuildOperationLogs(logs, include, exclude)
     }
 
-    private fun readBuildOperationLogs(traceLogFile: File): List<BuildOperationLog> {
+    private fun readBuildOperationLogs(traceLogFile: File): Stream<BuildOperationLog> {
         try {
             val gson = Gson().newBuilder()
                 .registerTypeAdapterFactory(BuildOperationLogAdapterFactory())
                 .create()
-            Files.lines(traceLogFile.toPath()).use { lines ->
-                return lines
-                    .map { line -> gson.fromJson(line, BuildOperationLog::class.java) }
-                    .toList()
-            }
+            return Files.lines(traceLogFile.toPath())
+                .map { line -> gson.fromJson(line, BuildOperationLog::class.java) }
         } catch (e: Exception) {
             throw RuntimeException("Failed to read build operation trace file: ${traceLogFile.absolutePath}", e)
         }
     }
+}
+
+class CompositeBuildOperationVisitor(private val delegates: List<BuildOperationVisitor>) : BuildOperationVisitor {
+
+    override fun visit(start: BuildOperationStart): PostVisit {
+        val postVisits = delegates.map { it.visit(start) }
+        return { startOp, finishOp ->
+            postVisits.forEach { it.invoke(startOp, finishOp) }
+        }
+    }
+
 }

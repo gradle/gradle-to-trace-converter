@@ -4,7 +4,7 @@ import org.gradle.tools.trace.app.buildops.*
 import org.gradle.tools.trace.app.util.composeCsvRow
 import java.io.File
 
-class TraceToTimelineConverter : BuildOperationVisitor {
+class TraceToTimelineConverter(val outputFile: File) : BuildOperationConverter {
 
     enum class NodeType { TASK, TRANSFORM }
 
@@ -21,9 +21,7 @@ class TraceToTimelineConverter : BuildOperationVisitor {
 
     private val nodes = mutableListOf<Node>()
 
-    fun convert(logs: BuildOperationLogs, outputFile: File) {
-        BuildOperationVisitor.visitLogs(logs, this)
-
+    override fun write() {
         outputFile.writeText(header)
         nodes.forEach {
             outputFile.appendText("\n")

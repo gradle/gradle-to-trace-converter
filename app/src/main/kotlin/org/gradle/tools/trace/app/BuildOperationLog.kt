@@ -1,5 +1,7 @@
 package org.gradle.tools.trace.app
 
+import java.util.stream.Stream
+
 interface BuildOperationLog {
     val id: Long
 }
@@ -47,10 +49,14 @@ class BuildOperationProgress(
 }
 
 data class BuildOperationLogs(
-    val logs: List<BuildOperationLog>,
+    val logs: Stream<BuildOperationLog>,
     val include: Regex? = null,
     val exclude: Regex? = null,
-)
+) : AutoCloseable {
+    override fun close() {
+        logs.close()
+    }
+}
 
 typealias PostVisit = (BuildOperationStart, BuildOperationFinish) -> Unit
 
@@ -69,6 +75,7 @@ interface BuildOperationVisitor {
             val include = traversal.include
             val exclude = traversal.exclude
             val openBuildOperations = mutableMapOf<Long, Pair<BuildOperationStart, PostVisit>>()
+            var count = 0
             fun helper(log: BuildOperationLog) {
                 when (log) {
                     is BuildOperationStart -> {
@@ -90,8 +97,10 @@ interface BuildOperationVisitor {
             }
 
             for (record in traversal.logs) {
+                count++
                 helper(record)
             }
+            println("Processed $count build operation logs")
         }
     }
 }
