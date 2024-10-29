@@ -1,45 +1,52 @@
 package org.gradle.tools.trace.app
 
+import com.google.protobuf.CodedOutputStream
 import perfetto.protos.BuiltinClockOuterClass.BuiltinClock
 import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot
 import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot.Clock
 import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation
 import perfetto.protos.ProcessDescriptorOuterClass.ProcessDescriptor
 import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
-import perfetto.protos.TraceOuterClass
 import perfetto.protos.TracePacketOuterClass.TracePacket
 import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
 import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
+import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicLong
 
 class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverter {
 
-    private val events = mutableListOf<TracePacket>()
+    private var packetCount = 0
     private val uuidCounter = AtomicLong(1)
     private val knownPidTid = mutableMapOf<Int, MutableMap<Int, Long>>()
     private val startTime = AtomicLong(0)
+    private val fileOutputStream: OutputStream = Files.newOutputStream(outputFile.toPath())
+    private val codedStream = CodedOutputStream.newInstance(fileOutputStream)
 
     private val bopThreadToId = mutableMapOf<String, Int>()
 
     override fun write() {
-        val trace = TraceOuterClass.Trace.newBuilder()
-            .addAllPacket(events)
-            .build()
+        codedStream.flush()
+        fileOutputStream.close()
+        println("CHROME TRACE: Wrote $packetCount packets to ${outputFile.absolutePath}")
+    }
 
-        outputFile.writeBytes(trace.toByteArray())
-        println("CHROME TRACE: Wrote ${events.size} events to ${outputFile.absolutePath}")
+    private fun writeTracePacket(packet: TracePacket) {
+        codedStream.writeMessage(1, packet)
+        packetCount++
     }
 
     override fun visit(start: BuildOperationStart): PostVisit {
-        if (events.isEmpty()) {
+        if (packetCount == 0) {
             onFirstRecord(start)
         }
 
         val ctProcessId = 0
         val ctThreadId = getThreadId("")
         if (!knownPidTid.containsKey(ctProcessId)) {
-            events.add(TracePacket.newBuilder()
+            writeTracePacket(TracePacket.newBuilder()
                 .setTrustedPacketSequenceId(1)
                 .setTrackDescriptor(TrackDescriptor.newBuilder()
                     .setUuid(0) // irrelevant, but needed
@@ -56,7 +63,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
         val uuid: Long
         if (!(knownPidTid[ctProcessId]!!.containsKey(ctThreadId))) {
             uuid = uuidCounter.getAndIncrement()
-            events.add(TracePacket.newBuilder()
+            writeTracePacket(TracePacket.newBuilder()
                 .setTrustedPacketSequenceId(1)
                 .setTrackDescriptor(TrackDescriptor.newBuilder()
                     .setUuid(uuid)
@@ -73,7 +80,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
             uuid = knownPidTid[ctProcessId]!![ctThreadId]!!
         }
 
-        events.add(TracePacket.newBuilder()
+        writeTracePacket(TracePacket.newBuilder()
             .setTimestampClockId(64)
             .setTimestamp(start.startTime - startTime.get())
             .setTrustedPacketSequenceId(1)
@@ -87,7 +94,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
             .build())
 
         return { _, finish ->
-            events.add(TracePacket.newBuilder()
+            writeTracePacket(TracePacket.newBuilder()
                 .setTimestampClockId(64)
                 .setTimestamp(finish.endTime - startTime.get())
                 .setTrustedPacketSequenceId(1)
@@ -104,7 +111,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
     private fun onFirstRecord(record: BuildOperationStart) {
         startTime.set(record.startTime)
 
-        events.add(TracePacket.newBuilder()
+        writeTracePacket(TracePacket.newBuilder()
             .setTrustedPacketSequenceId(1)
             .setClockSnapshot(ClockSnapshot.newBuilder()
                 // set our custom clock
