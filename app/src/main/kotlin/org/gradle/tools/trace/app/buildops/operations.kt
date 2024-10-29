@@ -1,7 +1,7 @@
 package org.gradle.tools.trace.app.buildops
 
 import com.google.gson.Gson
-import org.gradle.tools.trace.app.BuildOperationRecord
+import org.gradle.tools.trace.app.BuildOperationStart
 
 
 data class ExecuteTaskBuildOperationDetails(
@@ -14,7 +14,7 @@ data class ExecuteTaskBuildOperationDetails(
     companion object {
 
         @Suppress("UNCHECKED_CAST")
-        fun fromRecord(record: BuildOperationRecord): ExecuteTaskBuildOperationDetails {
+        fun fromStart(record: BuildOperationStart): ExecuteTaskBuildOperationDetails {
             val details = record.details as Map<String, *>
 
             return ExecuteTaskBuildOperationDetails(
@@ -149,7 +149,7 @@ data class ExecuteScheduledTransformationStepBuildOperationDetails(
     companion object {
 
             @Suppress("UNCHECKED_CAST")
-            fun fromRecord(record: BuildOperationRecord): ExecuteScheduledTransformationStepBuildOperationDetails {
+            fun fromRecord(record: BuildOperationStart): ExecuteScheduledTransformationStepBuildOperationDetails {
                 val details = record.details as Map<String, *>
 
                 return ExecuteScheduledTransformationStepBuildOperationDetails(

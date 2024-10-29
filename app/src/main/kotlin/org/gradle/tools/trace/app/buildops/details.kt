@@ -1,9 +1,9 @@
 package org.gradle.tools.trace.app.buildops
 
-import org.gradle.tools.trace.app.BuildOperationRecord
+import org.gradle.tools.trace.app.BuildOperationStart
 
-fun BuildOperationRecord.isExecuteTask() =
+fun BuildOperationStart.isExecuteTask() =
     detailsClassName == "org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationDetails"
 
-fun BuildOperationRecord.isExecuteScheduledTransformationStep() =
+fun BuildOperationStart.isExecuteScheduledTransformationStep() =
     detailsClassName == "org.gradle.api.internal.artifacts.transform.ExecuteScheduledTransformationStepBuildOperationDetails"
