@@ -91,7 +91,7 @@ interface BuildOperationVisitor {
                         val openBuildOp = openBuildOperations.remove(log.id)
                         openBuildOp?.let { (start, postVisit) ->
                             postVisit.invoke(start, log)
-                        } ?: println("No start operation found for $log")
+                        }
                     }
                 }
             }
