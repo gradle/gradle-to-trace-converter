@@ -25,7 +25,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
     private val fileOutputStream: OutputStream = Files.newOutputStream(outputFile.toPath())
     private val codedStream = CodedOutputStream.newInstance(fileOutputStream)
 
-    private val bopThreadToId = mutableMapOf<String, Int>()
+    private val pidTidToBuildOp = mutableMapOf<Int, MutableMap<Int, Long?>>()
 
     override fun write() {
         codedStream.flush()
@@ -44,7 +44,6 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
         }
 
         val ctProcessId = 0
-        val ctThreadId = getThreadId("")
         if (!knownPidTid.containsKey(ctProcessId)) {
             writeTracePacket(TracePacket.newBuilder()
                 .setTrustedPacketSequenceId(1)
@@ -58,10 +57,14 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
                 .build()
             )
             knownPidTid[ctProcessId] = mutableMapOf()
+            pidTidToBuildOp[ctProcessId] = mutableMapOf()
         }
 
         val uuid: Long
-        if (!(knownPidTid[ctProcessId]!!.containsKey(ctThreadId))) {
+        val knownTid = knownPidTid[ctProcessId]!!
+        val tidToBuildOp = pidTidToBuildOp[ctProcessId]!!
+        val ctThreadId = determineThreadId(start.parentId, tidToBuildOp)
+        if (!(knownTid.containsKey(ctThreadId))) {
             uuid = uuidCounter.getAndIncrement()
             writeTracePacket(TracePacket.newBuilder()
                 .setTrustedPacketSequenceId(1)
@@ -75,9 +78,9 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
                 )
                 .build()
             )
-            knownPidTid[ctProcessId]!![ctThreadId] = uuid
+            knownTid[ctThreadId] = uuid
         } else {
-            uuid = knownPidTid[ctProcessId]!![ctThreadId]!!
+            uuid = knownTid[ctThreadId]!!
         }
 
         writeTracePacket(TracePacket.newBuilder()
@@ -93,19 +96,44 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
             )
             .build())
 
+        val oldParent = tidToBuildOp[ctThreadId]
+        tidToBuildOp[ctThreadId] = start.id
+
         return { _, finish ->
+            tidToBuildOp[ctThreadId] = oldParent
             writeTracePacket(TracePacket.newBuilder()
                 .setTimestampClockId(64)
                 .setTimestamp(finish.endTime - startTime.get())
                 .setTrustedPacketSequenceId(1)
                 .setTrackEvent(TrackEvent.newBuilder()
                     .setTrackUuid(uuid)
+                    .addDebugAnnotations(toDebugAnnotations(mapOf(
+                        "id" to start.id,
+                        "parentId" to start.parentId
+                    ), "operation"))
                     .addDebugAnnotations(toDebugAnnotations(finish.result, "result"))
                     .setType(TrackEvent.Type.TYPE_SLICE_END)
                 )
                 .build()
             )
         }
+    }
+
+    private fun determineThreadId(
+        parentId: Long?,
+        tidToBuildOp: MutableMap<Int, Long?>
+    ): Int {
+        val compatibleThread = tidToBuildOp.entries
+            .find { it.value == parentId }
+            ?.key
+        if (compatibleThread != null) {
+            return compatibleThread
+        }
+        val emptyThread = tidToBuildOp.entries
+            .find { it.value == null }
+            ?.key
+        // We start counting at 1, since thread id 0 is reserved
+        return emptyThread ?: (tidToBuildOp.size + 1)
     }
 
     private fun onFirstRecord(record: BuildOperationStart) {
@@ -129,12 +157,6 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
             )
             .build()
         )
-    }
-
-    private fun getThreadId(bopThreadName: String): Int {
-        return bopThreadToId.getOrPut(bopThreadName) {
-            bopThreadToId.size + 1
-        }
     }
 
     private fun toDebugAnnotations(args: Map<String, Any?>?, name: String): DebugAnnotation {
