@@ -107,6 +107,10 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
                 .setTrustedPacketSequenceId(1)
                 .setTrackEvent(TrackEvent.newBuilder()
                     .setTrackUuid(uuid)
+                    .addDebugAnnotations(toDebugAnnotations(mapOf(
+                        "id" to start.id,
+                        "parentId" to start.parentId
+                    ), "operation"))
                     .addDebugAnnotations(toDebugAnnotations(finish.result, "result"))
                     .setType(TrackEvent.Type.TYPE_SLICE_END)
                 )
