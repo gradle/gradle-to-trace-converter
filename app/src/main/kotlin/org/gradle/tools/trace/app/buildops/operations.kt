@@ -117,7 +117,6 @@ data class TransformationIdentity(
 
     companion object {
 
-        private val gson = Gson()
         @Suppress("UNCHECKED_CAST")
         fun fromMap(data: Map<String, *>): TransformationIdentity {
             return TransformationIdentity(
