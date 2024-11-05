@@ -42,7 +42,7 @@ class ConverterApp : CliktCommand() {
 
     override fun run() {
         val formats = when (outputFormat) {
-            OutputFormat.ALL -> OutputFormat.values().filter { it != OutputFormat.ALL }
+            OutputFormat.ALL -> OutputFormat.entries.filter { it != OutputFormat.ALL }
             else -> listOf(outputFormat)
         }
         val converters = formats.map { format ->
