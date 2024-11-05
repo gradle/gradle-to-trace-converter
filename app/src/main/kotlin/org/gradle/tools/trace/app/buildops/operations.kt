@@ -1,6 +1,5 @@
 package org.gradle.tools.trace.app.buildops
 
-import com.google.gson.Gson
 import org.gradle.tools.trace.app.BuildOperationStart
 
 
@@ -147,18 +146,18 @@ data class ExecuteScheduledTransformationStepBuildOperationDetails(
 
     companion object {
 
-            @Suppress("UNCHECKED_CAST")
-            fun fromRecord(record: BuildOperationStart): ExecuteScheduledTransformationStepBuildOperationDetails {
-                val details = record.details as Map<String, *>
+        @Suppress("UNCHECKED_CAST")
+        fun fromRecord(record: BuildOperationStart): ExecuteScheduledTransformationStepBuildOperationDetails {
+            val details = record.details as Map<String, *>
 
-                return ExecuteScheduledTransformationStepBuildOperationDetails(
-                    transformationIdentity = TransformationIdentity.fromMap(details["transformationIdentity"] as Map<String, *>),
-                    sourceAttributes = (details["sourceAttributes"] as Map<String, String>).toSortedMap(),
-                    transformType = details["transformType"] as String,
-                    fromAttributes = (details["fromAttributes"] as Map<String, String>).toSortedMap(),
-                    toAttributes = (details["toAttributes"] as Map<String, String>).toSortedMap(),
-                )
-            }
+            return ExecuteScheduledTransformationStepBuildOperationDetails(
+                transformationIdentity = TransformationIdentity.fromMap(details["transformationIdentity"] as Map<String, *>),
+                sourceAttributes = (details["sourceAttributes"] as Map<String, String>).toSortedMap(),
+                transformType = details["transformType"] as String,
+                fromAttributes = (details["fromAttributes"] as Map<String, String>).toSortedMap(),
+                toAttributes = (details["toAttributes"] as Map<String, String>).toSortedMap(),
+            )
+        }
     }
 }
 
