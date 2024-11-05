@@ -7,7 +7,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0") {
+    implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21") {
         because("Required to apply Kotlin JVM plugin")
     }
 }
