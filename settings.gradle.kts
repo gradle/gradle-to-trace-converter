@@ -17,6 +17,11 @@ develocity {
         publishing.onlyIf { isCI }
     }
 }
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
 }
 
 include("app")

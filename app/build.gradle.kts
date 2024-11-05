@@ -9,9 +9,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10")
     implementation("com.github.ajalt.clikt:clikt:3.5.1")
 }
-repositories {
-    mavenCentral()
-}
 
 application {
     mainClass.set("org.gradle.tools.trace.app.AppKt")
