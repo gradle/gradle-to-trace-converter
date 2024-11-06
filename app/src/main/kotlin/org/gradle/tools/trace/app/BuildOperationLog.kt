@@ -2,7 +2,7 @@ package org.gradle.tools.trace.app
 
 import java.util.stream.Stream
 
-interface BuildOperationLog {
+sealed interface BuildOperationLog {
     val id: Long
 }
 
@@ -81,18 +81,22 @@ interface BuildOperationVisitor {
                     is BuildOperationStart -> {
                         val displayName = log.displayName
 
-                        val included = include == null || displayName.matches(include) || openBuildOperations.contains(log.parentId)
+                        val included = include == null ||
+                            displayName.matches(include) || openBuildOperations.contains(log.parentId)
                         if (!included || (exclude != null && displayName.matches(exclude))) {
                             return
                         }
                         openBuildOperations[log.id] = log to visitor.visit(log)
                     }
+
                     is BuildOperationFinish -> {
                         val openBuildOp = openBuildOperations.remove(log.id)
                         openBuildOp?.let { (start, postVisit) ->
                             postVisit.invoke(start, log)
                         }
                     }
+
+                    is BuildOperationProgress -> Unit
                 }
             }
 
