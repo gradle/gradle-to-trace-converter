@@ -2,6 +2,8 @@ package org.gradle.tools.trace.app
 
 import java.util.stream.Stream
 
+typealias BuildOperationId = Long
+
 sealed interface BuildOperationLog {
     val id: Long
 }

@@ -11,21 +11,41 @@ import perfetto.protos.TracePacketOuterClass.TracePacket
 import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
 import java.io.File
-import java.io.FileOutputStream
 import java.io.OutputStream
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicLong
+
+/**
+ * Chrome-trace process ID.
+ *
+ * Structurally, a group of threads that is independent of others
+ */
+typealias CtProcessId = Int
+
+/**
+ * Chrome-trace thread ID.
+ *
+ * Structurally, a thread lane within a [process][CtProcessId].
+ */
+typealias CtThreadId = Int
+
+/**
+ * Chrome-trace track ID.
+ *
+ * Structurally, a thread lane within a [process][CtProcessId].
+ */
+typealias CtTrackUuid = Long
 
 class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverter {
 
     private var packetCount = 0
     private val uuidCounter = AtomicLong(1)
-    private val knownPidTid = mutableMapOf<Int, MutableMap<Int, Long>>()
+    private val knownPidTid = mutableMapOf<CtProcessId, MutableMap<CtThreadId, CtTrackUuid>>()
     private val startTime = AtomicLong(0)
     private val fileOutputStream: OutputStream = Files.newOutputStream(outputFile.toPath())
     private val codedStream = CodedOutputStream.newInstance(fileOutputStream)
 
-    private val pidTidToBuildOp = mutableMapOf<Int, MutableMap<Int, Long?>>()
+    private val pidTidToBuildOp = mutableMapOf<CtProcessId, MutableMap<CtThreadId, BuildOperationId?>>()
 
     override fun write() {
         codedStream.flush()
@@ -120,8 +140,8 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
     }
 
     private fun determineThreadId(
-        parentId: Long?,
-        tidToBuildOp: MutableMap<Int, Long?>
+        parentId: BuildOperationId?,
+        tidToBuildOp: Map<CtThreadId, BuildOperationId?>
     ): Int {
         val compatibleThread = tidToBuildOp.entries
             .find { it.value == parentId }
