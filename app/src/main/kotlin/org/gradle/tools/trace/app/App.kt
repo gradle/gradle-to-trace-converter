@@ -11,7 +11,6 @@ import com.google.gson.Gson
 import java.io.File
 import java.nio.file.Files
 import java.util.stream.Stream
-import kotlin.streams.toList
 
 fun main(args: Array<String>) = ConverterApp().main(args)
 
@@ -34,11 +33,17 @@ class ConverterApp : CliktCommand() {
         )
         .default(OutputFormat.ALL)
 
-    private val include: Regex? by option("-i", "--include", help = "Regex to filter the build operations to include by display name")
-        .convert { it.toRegex() }
+    private val include: Regex? by option(
+        "-i",
+        "--include",
+        help = "Regex to filter the build operations to include by display name"
+    ).convert { it.toRegex() }
 
-    private val exclude: Regex? by option("-e", "--exclude", help = "Regex to filter the build operations to exclude")
-        .convert { it.toRegex() }
+    private val exclude: Regex? by option(
+        "-e",
+        "--exclude",
+        help = "Regex to filter the build operations to exclude"
+    ).convert { it.toRegex() }
 
     override fun run() {
         val formats = when (outputFormat) {
