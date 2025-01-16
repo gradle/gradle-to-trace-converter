@@ -11,7 +11,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.gradle.tools.trace.app.AppKt")
+    mainClass = "org.gradle.tools.trace.app.AppKt"
 }
 
 protobuf {
