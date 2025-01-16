@@ -61,7 +61,9 @@ class ConverterApp : CliktCommand() {
     }
 
     private fun outputFile(traceFile: File, format: OutputFormat): File {
-        return File(traceFile.parentFile, traceFile.nameWithoutExtension + format.filePostfix)
+        val baseName = traceFile.nameWithoutExtension
+            .removeSuffix("-log") // always appended by Gradle, when writing a build operations log
+        return File(traceFile.parentFile, baseName + format.filePostfix)
     }
 
     private fun toChromeTraceConverter(outputFile: File): TraceToChromeTraceConverter =
