@@ -4,4 +4,8 @@
 # Ignore Gradle build output directory
 build
 
+# IntelliJ files
 .idea
+
+# Kotlin temporary files
+.kotlin
