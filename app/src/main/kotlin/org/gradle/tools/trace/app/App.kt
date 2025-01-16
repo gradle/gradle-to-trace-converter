@@ -20,10 +20,12 @@ enum class OutputFormat(val filePostfix: String) {
     TIMELINE("-timeline.csv");
 }
 
-class ConverterApp : CliktCommand() {
+class ConverterApp : CliktCommand(name = "gradle-trace-converter") {
 
-    private val buildOperationTrace: File by argument(name = "trace", help = "Path to the build operation trace file")
-        .file(mustExist = true, canBeDir = false, mustBeReadable = true)
+    private val buildOperationTrace: File by argument(
+        name = "trace",
+        help = "Path to the build operation trace file (ends with -log.txt)"
+    ).file(mustExist = true, canBeDir = false, mustBeReadable = true)
 
     private val outputFormat: OutputFormat by option("-o", "--output-format", help = "The output format to use")
         .choice(

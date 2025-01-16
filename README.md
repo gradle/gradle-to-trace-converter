@@ -2,7 +2,7 @@
 
 Command-line tool for analysis and conversion of Build Operation traces of Gradle Build Tool into other formats:
 
-* **Chrome trace** (Perfetto trace) in a Protobuf format
+* **Chrome trace** ([Perfetto](https://ui.perfetto.dev/) trace) in a Protobuf format
 * **Timeline** - a CSV with tasks and transforms executions
 
 ## How to install
@@ -53,4 +53,22 @@ and exclude (`-e`) any operations starting with `Download` word.
 
 ```sh
 gtc /path/to/project/trace-log.txt -i "Run tasks" -e "Download.*"'
+```
+
+### Help
+
+```
+Usage: gradle-trace-converter [OPTIONS] trace
+
+Options:
+  -o, --output-format [all|chrome|timeline]
+                                   The output format to use
+  -i, --include VALUE              Regex to filter the build operations to
+                                   include by display name
+  -e, --exclude VALUE              Regex to filter the build operations to
+                                   exclude
+  -h, --help                       Show this message and exit
+
+Arguments:
+  trace  Path to the build operation trace file (ends with -log.txt)
 ```
