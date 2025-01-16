@@ -6,7 +6,7 @@ plugins {
     id("com.gradle.develocity") version "3.19"
 }
 
-rootProject.name = "trace-command-line-tool"
+rootProject.name = "gradle-trace-converter"
 
 develocity {
     buildScan {
