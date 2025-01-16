@@ -31,7 +31,7 @@ class ConverterApp : CliktCommand() {
             "chrome" to OutputFormat.CHROME_TRACE,
             "timeline" to OutputFormat.TIMELINE,
         )
-        .default(OutputFormat.ALL)
+        .default(OutputFormat.CHROME_TRACE)
 
     private val include: Regex? by option(
         "-i",

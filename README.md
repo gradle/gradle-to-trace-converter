@@ -37,7 +37,7 @@ cd /path/to/project
 Now you can convert the trace to a Chrome trace:
 
 ```sh
-gtc -o chrome /path/to/project/trace-log.txt 
+gtc /path/to/project/trace-log.txt 
 
 # Creates a Chrome trace: /path/to/project/trace-chrome.proto
 ```
@@ -52,5 +52,5 @@ Include (`-i`) only the operations in the `Run tasks` **subtree**
 and exclude (`-e`) any operations starting with `Download` word.
 
 ```sh
-gtc -o chrome /path/to/project/trace-log.txt -i "Run tasks" -e "Download.*"'
+gtc /path/to/project/trace-log.txt -i "Run tasks" -e "Download.*"'
 ```
