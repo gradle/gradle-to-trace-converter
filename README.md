@@ -1,6 +1,9 @@
 # Gradle Build Operation Trace Converter
 
-Command-line tool for analysis and conversion of Build Operation traces of Gradle Build Tool into other formats.
+Command-line tool for analysis and conversion of Build Operation traces of Gradle Build Tool into other formats:
+
+* **Chrome trace** (Perfetto trace) in a Protobuf format
+* **Timeline** - a CSV with tasks and transforms executions
 
 ## How to install
 
@@ -35,7 +38,14 @@ Now you can convert the trace to a Chrome trace:
 
 ```sh
 gtc -o chrome /path/to/project/trace-log.txt 
+
+# Creates a Chrome trace: /path/to/project/trace-chrome.proto
 ```
+
+The trace can be viewed in the [Perfetto UI](https://ui.perfetto.dev/).
+You can drag-n-drop the file on that page.
+
+### More options
 
 It is also possible to filter the trace.
 Include (`-i`) only the operations in the `Run tasks` **subtree**
