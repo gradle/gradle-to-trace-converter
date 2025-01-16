@@ -12,6 +12,7 @@ dependencies {
 
 application {
     mainClass = "org.gradle.tools.trace.app.AppKt"
+    applicationName = "gtc"
 }
 
 protobuf {
