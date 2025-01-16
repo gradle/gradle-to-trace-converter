@@ -9,3 +9,6 @@ build
 
 # Kotlin temporary files
 .kotlin
+
+# Default installation directory
+/distribution

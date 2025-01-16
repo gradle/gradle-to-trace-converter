@@ -19,3 +19,15 @@ protobuf {
         artifact = "com.google.protobuf:protoc:3.21.12"
     }
 }
+
+val installDistTask = tasks.named<Sync>("installDist")
+
+tasks.register<Sync>("install") {
+    val installDirName = "gtc.install.dir"
+    val installDir = providers.gradleProperty(installDirName)
+        .orElse(providers.systemProperty(installDirName))
+        .orElse("$rootDir/distribution")
+
+    from(installDistTask.map { it.destinationDir })
+    into(installDir)
+}
