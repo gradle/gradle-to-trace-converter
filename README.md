@@ -72,3 +72,7 @@ Options:
 Arguments:
   trace  Path to the build operation trace file (ends with -log.txt)
 ```
+
+## Requirements
+
+Requires JVM 17 to build and run
