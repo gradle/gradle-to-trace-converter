@@ -93,7 +93,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
                     .setThread(ThreadDescriptor.newBuilder()
                         .setPid(ctProcessId)
                         .setTid(ctThreadId)
-                        .setThreadName("thread($ctThreadId)")
+                        .setThreadName("abstract thread")
                     )
                 )
                 .build()
