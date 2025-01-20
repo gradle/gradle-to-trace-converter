@@ -71,7 +71,7 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
                     .setUuid(0) // irrelevant, but needed
                     .setProcess(ProcessDescriptor.newBuilder()
                         .setPid(ctProcessId)
-                        .setProcessName("Worker Lease $ctProcessId")
+                        .setProcessName("Gradle Build Operation Trace")
                     )
                 )
                 .build()
