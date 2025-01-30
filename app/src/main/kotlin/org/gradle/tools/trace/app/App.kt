@@ -107,4 +107,8 @@ class CompositeBuildOperationVisitor(private val delegates: List<BuildOperationV
         }
     }
 
+    override fun visit(progress: BuildOperationProgress) {
+        delegates.forEach { it.visit(progress) }
+    }
+
 }

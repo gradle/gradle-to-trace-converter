@@ -71,6 +71,8 @@ interface BuildOperationVisitor {
      */
     fun visit(start: BuildOperationStart): PostVisit
 
+    fun visit(progress: BuildOperationProgress) {}
+
     companion object {
 
         fun visitLogs(traversal: BuildOperationLogs, visitor: BuildOperationVisitor) {
@@ -98,7 +100,7 @@ interface BuildOperationVisitor {
                         }
                     }
 
-                    is BuildOperationProgress -> Unit
+                    is BuildOperationProgress -> visitor.visit(log)
                 }
             }
 

@@ -47,6 +47,8 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
 
     private val pidTidToBuildOp = mutableMapOf<CtProcessId, MutableMap<CtThreadId, BuildOperationId?>>()
 
+    private var expectBuildScanLinkProgressEvent = false
+
     override fun write() {
         codedStream.flush()
         fileOutputStream.close()
@@ -137,6 +139,49 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
                 .build()
             )
         }
+    }
+
+    override fun visit(progress: BuildOperationProgress) {
+        // A heuristic to extract the build scan link from the progress events
+        // that represent console output at the end of the build
+        if (progress.detailsClassName == "org.gradle.internal.logging.events.StyledTextOutputEvent") {
+            val details =
+                progress.details?.takeIf { it["category"] == "com.gradle.develocity.agent.gradle.DevelocityPlugin" }
+                    ?: return
+
+            @Suppress("UNCHECKED_CAST")
+            val spans: Map<String, String> = details["spans"]?.let { it as? List<Map<String, String>> }?.get(0)
+                ?: return
+
+            val text = spans["text"] ?: return
+            if (text.startsWith("Publishing build scan...")) {
+                expectBuildScanLinkProgressEvent = true
+            } else if (expectBuildScanLinkProgressEvent) {
+                expectBuildScanLinkProgressEvent = false
+                if (text.startsWith("http")) {
+                    onBuildScanUrl(text)
+                }
+            }
+        }
+    }
+
+    private fun onBuildScanUrl(buildScanUrl: String) {
+        println("Original build scan: $buildScanUrl")
+
+        val extraTrackId = uuidCounter.getAndIncrement()
+        writeTracePacket(
+            TracePacket.newBuilder()
+                .setTimestampClockId(64)
+                .setTimestamp(0)
+                .setTrustedPacketSequenceId(1)
+                .setTrackEvent(
+                    TrackEvent.newBuilder()
+                        .setTrackUuid(extraTrackId)
+                        .setName("Build scan: $buildScanUrl")
+                        .setType(TrackEvent.Type.TYPE_INSTANT)
+                )
+                .build()
+        )
     }
 
     private fun determineThreadId(
