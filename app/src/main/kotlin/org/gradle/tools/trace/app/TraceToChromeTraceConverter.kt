@@ -1,6 +1,10 @@
 package org.gradle.tools.trace.app
 
 import com.google.protobuf.CodedOutputStream
+import java.io.File
+import java.io.OutputStream
+import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicLong
 import perfetto.protos.BuiltinClockOuterClass.BuiltinClock
 import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot
 import perfetto.protos.ClockSnapshotOuterClass.ClockSnapshot.Clock
@@ -10,10 +14,6 @@ import perfetto.protos.ThreadDescriptorOuterClass.ThreadDescriptor
 import perfetto.protos.TracePacketOuterClass.TracePacket
 import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor
 import perfetto.protos.TrackEventOuterClass.TrackEvent
-import java.io.File
-import java.io.OutputStream
-import java.nio.file.Files
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Chrome-trace process ID.
@@ -67,16 +67,19 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
 
         val ctProcessId = 0
         if (!knownPidTid.containsKey(ctProcessId)) {
-            writeTracePacket(TracePacket.newBuilder()
-                .setTrustedPacketSequenceId(1)
-                .setTrackDescriptor(TrackDescriptor.newBuilder()
-                    .setUuid(0) // irrelevant, but needed
-                    .setProcess(ProcessDescriptor.newBuilder()
-                        .setPid(ctProcessId)
-                        .setProcessName("Gradle Build Operation Trace")
+            writeTracePacket(
+                TracePacket.newBuilder()
+                    .setTrustedPacketSequenceId(1)
+                    .setTrackDescriptor(
+                        TrackDescriptor.newBuilder()
+                            .setUuid(0) // irrelevant, but needed
+                            .setProcess(
+                                ProcessDescriptor.newBuilder()
+                                    .setPid(ctProcessId)
+                                    .setProcessName("Gradle Build Operation Trace")
+                            )
                     )
-                )
-                .build()
+                    .build()
             )
             knownPidTid[ctProcessId] = mutableMapOf()
             pidTidToBuildOp[ctProcessId] = mutableMapOf()
@@ -88,55 +91,67 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
         val ctThreadId = determineThreadId(start.parentId, tidToBuildOp)
         if (!(knownTid.containsKey(ctThreadId))) {
             uuid = uuidCounter.getAndIncrement()
-            writeTracePacket(TracePacket.newBuilder()
-                .setTrustedPacketSequenceId(1)
-                .setTrackDescriptor(TrackDescriptor.newBuilder()
-                    .setUuid(uuid)
-                    .setThread(ThreadDescriptor.newBuilder()
-                        .setPid(ctProcessId)
-                        .setTid(ctThreadId)
-                        .setThreadName("abstract thread")
+            writeTracePacket(
+                TracePacket.newBuilder()
+                    .setTrustedPacketSequenceId(1)
+                    .setTrackDescriptor(
+                        TrackDescriptor.newBuilder()
+                            .setUuid(uuid)
+                            .setThread(
+                                ThreadDescriptor.newBuilder()
+                                    .setPid(ctProcessId)
+                                    .setTid(ctThreadId)
+                                    .setThreadName("abstract thread")
+                            )
                     )
-                )
-                .build()
+                    .build()
             )
             knownTid[ctThreadId] = uuid
         } else {
             uuid = knownTid[ctThreadId]!!
         }
 
-        writeTracePacket(TracePacket.newBuilder()
-            .setTimestampClockId(64)
-            .setTimestamp(start.startTime - startTime.get())
-            .setTrustedPacketSequenceId(1)
-            .setTrackEvent(TrackEvent.newBuilder()
-                .setTrackUuid(uuid)
-                .setName(start.displayName)
-                .addCategories(start.detailsClassName ?: "")
-                .addDebugAnnotations(toDebugAnnotations(start.details, "details"))
-                .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
-            )
-            .build())
+        writeTracePacket(
+            TracePacket.newBuilder()
+                .setTimestampClockId(64)
+                .setTimestamp(start.startTime - startTime.get())
+                .setTrustedPacketSequenceId(1)
+                .setTrackEvent(
+                    TrackEvent.newBuilder()
+                        .setTrackUuid(uuid)
+                        .setName(start.displayName)
+                        .addCategories(start.detailsClassName ?: "")
+                        .addDebugAnnotations(toDebugAnnotations(start.details, "details"))
+                        .setType(TrackEvent.Type.TYPE_SLICE_BEGIN)
+                )
+                .build()
+        )
 
         val oldParent = tidToBuildOp[ctThreadId]
         tidToBuildOp[ctThreadId] = start.id
 
         return { _, finish ->
             tidToBuildOp[ctThreadId] = oldParent
-            writeTracePacket(TracePacket.newBuilder()
-                .setTimestampClockId(64)
-                .setTimestamp(finish.endTime - startTime.get())
-                .setTrustedPacketSequenceId(1)
-                .setTrackEvent(TrackEvent.newBuilder()
-                    .setTrackUuid(uuid)
-                    .addDebugAnnotations(toDebugAnnotations(mapOf(
-                        "id" to start.id,
-                        "parentId" to start.parentId
-                    ), "operation"))
-                    .addDebugAnnotations(toDebugAnnotations(finish.result, "result"))
-                    .setType(TrackEvent.Type.TYPE_SLICE_END)
-                )
-                .build()
+            writeTracePacket(
+                TracePacket.newBuilder()
+                    .setTimestampClockId(64)
+                    .setTimestamp(finish.endTime - startTime.get())
+                    .setTrustedPacketSequenceId(1)
+                    .setTrackEvent(
+                        TrackEvent.newBuilder()
+                            .setTrackUuid(uuid)
+                            .addDebugAnnotations(
+                                toDebugAnnotations(
+                                    mapOf(
+                                        "id" to start.id,
+                                        "parentId" to start.parentId
+                                    ), "operation"
+                                )
+                            )
+                            .addDebugAnnotations(toDebugAnnotations(finish.result, "result"))
+                            .setType(TrackEvent.Type.TYPE_SLICE_END)
+                    )
+                    .build()
             )
         }
     }
@@ -204,23 +219,27 @@ class TraceToChromeTraceConverter(val outputFile: File) : BuildOperationConverte
     private fun onFirstRecord(record: BuildOperationStart) {
         startTime.set(record.startTime)
 
-        writeTracePacket(TracePacket.newBuilder()
-            .setTrustedPacketSequenceId(1)
-            .setClockSnapshot(ClockSnapshot.newBuilder()
-                // set our custom clock
-                // - let the 0 of our clock be the startTime on the global boot-time clock
-                // - use 'ms' unit since that's anyway the precision we get by the build operation infrastructure
-                .addClocks(Clock.newBuilder()
-                    .setTimestamp(0)
-                    .setUnitMultiplierNs(1000 * 1000) // unit is 'ms'
-                    .setClockId(64) // first user-defined available clock ID
+        writeTracePacket(
+            TracePacket.newBuilder()
+                .setTrustedPacketSequenceId(1)
+                .setClockSnapshot(
+                    ClockSnapshot.newBuilder()
+                        // set our custom clock
+                        // - let the 0 of our clock be the startTime on the global boot-time clock
+                        // - use 'ms' unit since that's anyway the precision we get by the build operation infrastructure
+                        .addClocks(
+                            Clock.newBuilder()
+                                .setTimestamp(0)
+                                .setUnitMultiplierNs(1000 * 1000) // unit is 'ms'
+                                .setClockId(64) // first user-defined available clock ID
+                        )
+                        .addClocks(
+                            Clock.newBuilder()
+                                .setTimestamp(startTime.get())
+                                .setClockId(BuiltinClock.BUILTIN_CLOCK_BOOTTIME_VALUE)
+                        )
                 )
-                .addClocks(Clock.newBuilder()
-                    .setTimestamp(startTime.get())
-                    .setClockId(BuiltinClock.BUILTIN_CLOCK_BOOTTIME_VALUE)
-                )
-            )
-            .build()
+                .build()
         )
     }
 

@@ -1,14 +1,17 @@
 package org.gradle.tools.trace.app
 
-import org.gradle.tools.trace.app.buildops.*
-import org.gradle.tools.trace.app.util.composeCsvRow
 import java.io.File
+import org.gradle.tools.trace.app.buildops.ExecuteScheduledTransformationStepBuildOperationDetails
+import org.gradle.tools.trace.app.buildops.ExecuteTaskBuildOperationDetails
+import org.gradle.tools.trace.app.buildops.isExecuteScheduledTransformationStep
+import org.gradle.tools.trace.app.buildops.isExecuteTask
+import org.gradle.tools.trace.app.util.composeCsvRow
 
 class TraceToTimelineConverter(val outputFile: File) : BuildOperationConverter {
 
     enum class NodeType { TASK, TRANSFORM }
 
-    data class Node (
+    data class Node(
         val description: String,
         val type: NodeType,
         val inTypeId: Long,
